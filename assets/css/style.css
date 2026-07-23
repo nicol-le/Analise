@@ -1,0 +1,19 @@
+.material-symbols-outlined {
+    font-variation-settings:
+        'FILL' 0,
+        'wght' 400,
+        'GRAD' 0,
+        'opsz' 24;
+}
+
+.chart-container {
+    position: relative;
+    height: 320px;
+    width: 100%;
+}
+
+.active-time {
+    background: white !important;
+    color: #8b0000 !important;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
