@@ -1,4 +1,4 @@
-﻿window.appState = window.appState || {
+window.appState = window.appState || {
     rawPrecos: [],
     rawClima: [],
     rawToneladas: [],
@@ -9,6 +9,76 @@
     originTableData: [],
     originSortKey: 'VL_TONELADA',
     originSortAsc: false
+};
+
+/**
+ * Gerencia a tela de carregamento com mensagens de progresso e animação.
+ */
+const LoadingScreen = {
+    _overlay: null,
+    _message: null,
+    _bar: null,
+    _percent: null,
+    _steps: null,
+
+    _init() {
+        this._overlay = document.getElementById('loadingOverlay');
+        this._message = document.getElementById('loadingMessage');
+        this._bar = document.getElementById('loadingBar');
+        this._percent = document.getElementById('loadingPercent');
+        this._steps = document.getElementById('loadingSteps');
+    },
+
+    show() {
+        if (!this._overlay) this._init();
+        if (!this._overlay) return;
+        this._overlay.classList.remove('hidden');
+        this.setProgress(0);
+        this._setStep(0);
+    },
+
+    hide() {
+        if (!this._overlay) this._init();
+        if (!this._overlay) return;
+        setTimeout(() => {
+            this._overlay.classList.add('hidden');
+        }, 400);
+    },
+
+    /** Atualiza a mensagem e a etapa ativa. stepNum: 1-6 */
+    update(stepNum, message) {
+        if (!this._overlay) this._init();
+        if (!this._overlay) return;
+        if (this._message) {
+            this._message.style.opacity = '0';
+            setTimeout(() => {
+                this._message.textContent = message;
+                this._message.style.opacity = '1';
+            }, 150);
+        }
+        this._setStep(stepNum);
+    },
+
+    /** Define o progresso da barra (0-100). */
+    setProgress(pct) {
+        if (!this._bar) this._init();
+        if (!this._bar) return;
+        const clamped = Math.max(0, Math.min(100, Math.round(pct)));
+        this._bar.style.width = clamped + '%';
+        if (this._percent) this._percent.textContent = clamped + '%';
+    },
+
+    _setStep(stepNum) {
+        if (!this._steps) this._init();
+        if (!this._steps) return;
+        const steps = this._steps.querySelectorAll('.step');
+        steps.forEach(s => {
+            const num = parseInt(s.dataset.step);
+            s.classList.remove('active', 'done');
+            if (num < stepNum) s.classList.add('done');
+            else if (num === stepNum) s.classList.add('active');
+        });
+    }
 };
 
 
@@ -166,39 +236,51 @@ function changeGranularity(g, btn) {
 async function processar() {
     const prod = document.getElementById('prodInp').value;
     const varInp = document.getElementById('varInp').value;
-    const dateRef = document.getElementById('dateRef').value; // pode ser vazio
 
     if (!prod) return alert("Por favor, selecione um produto.");
 
-    document.getElementById('status-label').innerText = "BUSCANDO DADOS...";
+    const t0 = performance.now();
+    LoadingScreen.show();
+    document.getElementById('status-label').innerText = "ANALISANDO...";
 
-    const [precos, clima] = await Promise.all([
-        Api.fetchPrecos(prod, varInp),
-        Api.fetchClima()
-    ]);
+    // ETAPA 1: Buscar preços (com callback de progresso)
+    LoadingScreen.update(1, `Buscando preços de "${prod}" no banco de dados...`);
+    LoadingScreen.setProgress(5);
+    const precos = await Api.fetchPrecos(prod, varInp, (done, total) => {
+        const pct = 5 + Math.round((done / Math.max(total, 1)) * 30);
+        LoadingScreen.setProgress(pct);
+    });
 
     appState.rawPrecos = precos;
-    appState.rawClima = clima;
     appState.currentProduto = prod;
 
+    const useCustomPeriod = document.getElementById('useCustomPeriod')?.checked;
+    const datas = precos.map(p => Utils.toYMD(p.data)).filter(Boolean).sort();
     
-    if (dateRef) {
-        appState.dateRef = dateRef;
+    if (useCustomPeriod) {
+        appState.dateStart = document.getElementById('dateStart').value;
+        appState.dateEnd = document.getElementById('dateEnd').value;
+        if (!appState.dateStart || !appState.dateEnd) {
+            appState.dateStart = datas.length ? datas[0] : new Date().toISOString().split('T')[0];
+            appState.dateEnd = datas.length ? datas[datas.length - 1] : new Date().toISOString().split('T')[0];
+        }
     } else {
-        const datas = precos.map(p => Utils.toYMD(p.data)).filter(Boolean).sort();
-        appState.dateRef = datas.length ? datas[datas.length - 1] : new Date().toISOString().split('T')[0];
-        // Preenche o campo de data na interface com o valor usado
-        document.getElementById('dateRef').value = appState.dateRef;
+        appState.dateStart = datas.length ? datas[0] : new Date().toISOString().split('T')[0];
+        appState.dateEnd = datas.length ? datas[datas.length - 1] : new Date().toISOString().split('T')[0];
     }
 
+    // ETAPA 2: Coletar dados climáticos (Open-Meteo primeiro; reserva só se falhar)
+    LoadingScreen.update(2, 'Coletando dados climáticos das cidades produtoras...');
+    LoadingScreen.setProgress(40);
+
     const allCities = getProducerCities(prod);
-    const topCities = allCities.slice(0, 10);
+    const topN = Api.WEATHER_TOP_CITIES || 5;
+    const topCities = allCities.slice(0, topN);
     appState.allProducerCities = allCities;
     appState.topProducerCities = topCities;
-    appState.cityClimate = [];
-    appState.cityCoordinates = {};
 
     const priceDates = precos.map(p => Utils.toYMD(p.data)).filter(Boolean).sort();
+    let gotWeather = false;
     if (topCities.length && priceDates.length) {
         const availableUntil = new Date();
         availableUntil.setDate(availableUntil.getDate() - 5);
@@ -208,26 +290,62 @@ async function processar() {
             appState.cityClimate = cityClimate;
             appState.cityCoordinates = Object.fromEntries(cityClimate.map(city => [`${city.municipio}|${city.uf}`, city]));
             appState.rawClima = buildWeightedClimate(cityClimate);
+            gotWeather = true;
         }
     }
 
-    console.group("📊 DEBUG: Análise");
-    console.log("Total registros preços:", precos.length);
-    console.log("Cidades com clima ponderado:", appState.cityClimate.length);
-    console.log("Data de Referência usada:", appState.dateRef);
-    console.groupEnd();
+    // Só busca clima de reserva do Supabase se Open-Meteo falhou
+    if (!gotWeather) {
+        LoadingScreen.update(2, 'Buscando base climática de reserva...');
+        const clima = await Api.fetchClima();
+        appState.rawClima = clima;
+    }
+    LoadingScreen.setProgress(55);
 
-    renderOriginData(appState.currentProduto);
+    // ETAPA 3: Analisar sazonalidade e tendências
+    LoadingScreen.update(3, 'Analisando sazonalidade e tendências de preço...');
+    LoadingScreen.setProgress(60);
+    // Pequeno delay para a UI atualizar
+    await new Promise(r => setTimeout(r, 50));
 
-    renderDashboard();
+    // ETAPA 4: Montar mapa de produção
+    LoadingScreen.update(4, 'Montando mapa de produção e cidades produtoras...');
+    LoadingScreen.setProgress(70);
+    try {
+        renderOriginData(appState.currentProduto);
+    } catch (err) {
+        console.error('Erro no renderOriginData:', err);
+    }
+    await new Promise(r => setTimeout(r, 50));
+
+    // ETAPA 5: Calcular correlações clima × preço
+    LoadingScreen.update(5, 'Calculando correlações clima × preço e impacto térmico...');
+    LoadingScreen.setProgress(80);
+    try {
+        renderDashboard();
+    } catch (err) {
+        console.error('Erro no renderDashboard:', err);
+    }
+    await new Promise(r => setTimeout(r, 50));
+
+    // ETAPA 6: Finalizar
+    LoadingScreen.update(6, 'Finalizando análise e gerando recomendações...');
+    LoadingScreen.setProgress(95);
+
+    console.log(`⚡ Análise em ${(performance.now() - t0).toFixed(0)}ms · preços=${precos.length} · clima cidades=${appState.cityClimate?.length || 0}`);
+
+    LoadingScreen.setProgress(100);
+    LoadingScreen.hide();
     document.getElementById('status-label').innerText = "SISTEMA ONLINE";
 
-    // O mapa contém todas as cidades. Coordenadas ficam no cache do navegador
-    // para as próximas análises, enquanto o clima usa somente as 10 principais.
-    Api.resolveCityCoordinates(allCities, (done, total) => {
-        document.getElementById('status-label').innerText = `MAPA: ${done}/${total} CIDADES`;
+    // Geocode em background (não bloqueia a análise)
+    const mapCities = allCities.slice(0, Api.MAP_GEOCODE_LIMIT || 35);
+    Api.resolveCityCoordinates(mapCities, (done, total) => {
+        document.getElementById('status-label').innerText = `MAPA: ${done}/${total}`;
     }).then(located => {
-        appState.cityCoordinates = Object.fromEntries(located.map(city => [`${city.municipio}|${city.uf}`, city]));
+        const merged = { ...(appState.cityCoordinates || {}) };
+        located.forEach(city => { merged[`${city.municipio}|${city.uf}`] = city; });
+        appState.cityCoordinates = merged;
         renderOriginData(appState.currentProduto);
         document.getElementById('status-label').innerText = "SISTEMA ONLINE";
     });
@@ -291,7 +409,8 @@ function buildWeightedClimate(cities) {
 
 
 function renderDashboard() {
-    const dateRef = appState.dateRef;
+    const dateStart = appState.dateStart;
+    const dateEnd = appState.dateEnd;
     
     // Monta TODOS os registros válidos primeiro
     let todosHistoricos = appState.rawPrecos.map(p => ({ 
@@ -309,81 +428,16 @@ function renderDashboard() {
     }
 
 
-    let historicos = todosHistoricos.filter(p => p.date <= dateRef);
+    let historicos = todosHistoricos.filter(p => p.date >= dateStart && p.date <= dateEnd);
 
-    
     if (!historicos.length) {
-        console.warn("Nenhum dado antes da data de referência. Usando todos os dados disponíveis.");
+        console.warn("Nenhum dado no período selecionado. Usando todos os dados disponíveis.");
         historicos = todosHistoricos;
-        appState.dateRef = todosHistoricos[todosHistoricos.length - 1].date;
-        document.getElementById('dateRef').value = appState.dateRef;
     }
 
-    let reaisPosteriores = appState.rawPrecos.map(p => ({ 
-        date: Utils.toYMD(p.data), 
-        val: parseFloat(p.comum)
-    }))
-    .filter(p => p.date && !isNaN(p.val) && p.date > dateRef && p.date <= addDays(dateRef, 60))
-    .sort((a, b) => a.date.localeCompare(b.date));
+    // Calcula coeficiente de variação (volatilidade dos preços)
+    const cv = Utils.coefficientOfVariation(historicos.map(h => h.val));
 
-    const vals = historicos.map(f => f.val);
-    const minData = Utils.findMin(historicos);
-    const maxData = Utils.findMax(historicos);
-    const stdDev = Utils.stdDev(vals);
-    const cv = Utils.coefficientOfVariation(vals);
-    const unidade = historicos.length > 0 ? historicos[0].unidade : 'KG';
-
-    document.getElementById('st-media').innerText = Utils.formatCurrency(Utils.average(vals));
-    document.getElementById('st-media-date').innerText = `${historicos.length} dias`;
-    document.getElementById('st-unidade').innerText = `por ${unidade}`;
-    document.getElementById('st-min').innerText = Utils.formatCurrency(minData.val);
-    document.getElementById('st-min-date').innerText = Utils.formatDate(minData.date);
-    document.getElementById('st-max').innerText = Utils.formatCurrency(maxData.val);
-    document.getElementById('st-max-date').innerText = Utils.formatDate(maxData.date);
-    document.getElementById('st-stddev').innerText = Utils.formatCurrency(stdDev);
-    document.getElementById('st-cv').innerText = `CV: ${cv.toFixed(1)}%`;
-
-    
-    const previsoes = generateForecast(historicos, dateRef);
-    
-    let dadosEvolucao = [...historicos];
-    if (appState.currentGranularity !== 'diario') {
-        let grupos = {};
-        historicos.forEach(f => {
-            let chave = (appState.currentGranularity === 'mensal') 
-                ? f.date.substring(0, 7) 
-                : `${new Date(f.date).getFullYear()}-W${Math.ceil(new Date(f.date).getDate()/7)}`;
-            if (!grupos[chave]) grupos[chave] = [];
-            grupos[chave].push(f.val);
-        });
-        dadosEvolucao = Object.keys(grupos).map(k => ({ date: k, val: Utils.average(grupos[k]) }));
-    }
-
-    Charts.updateLineChart('chEvolucao', dadosEvolucao.map(d => d.date), dadosEvolucao.map(d => d.val), 'Preço R$');
-
-    const mesesLabels = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-    const sazonalData = mesesLabels.map((_, i) => {
-        let m = historicos.filter(p => new Date(p.date).getUTCMonth() === i);
-        return m.length ? Utils.average(m.map(p => p.val)) : 0;
-    });
-    Charts.updateBarChart('chSazonal', mesesLabels, sazonalData);
-
-    renderForecastChart(historicos, previsoes, reaisPosteriores);
-    renderForecastAccuracy(previsoes, reaisPosteriores, historicos);
-
-    const volatility = cv;
-    const accuracyError = calculateForecastError(previsoes, reaisPosteriores);
-    const confidenceScore = calculateConfidence(historicos, volatility, historicos.length, accuracyError);
-    const confidenceInfo = getConfidenceLevel(confidenceScore);
-    
-    document.getElementById('confidence-circle').style.backgroundColor = confidenceInfo.color;
-    document.getElementById('confidence-icon').innerText = confidenceInfo.icon;
-    document.getElementById('confidence-level').innerText = confidenceScore.toFixed(0);
-    document.getElementById('confidence-desc').innerText = confidenceInfo.label;
-    document.getElementById('data-points').innerText = historicos.length;
-    document.getElementById('mean-error').innerText = accuracyError.toFixed(2) + '%';
-
-   
     const mapaClima = {};
     appState.rawClima.forEach(c => {
         try {
@@ -391,15 +445,21 @@ function renderDashboard() {
             if (!d) return;
             const temp = parseFloat(c.temperatura) || parseFloat(c.temperatura_media) || 0;
             const chuva = parseFloat(c.chuva) || parseFloat(c.chuva_mm) || 0;
-            const umidade = parseFloat(c.humidade) || parseFloat(c.umidade_relativa) || 0;
-            const evapotransp = parseFloat(c.evapotranspiracao) || 0;
-            const vento = parseFloat(c.velocidadedevento) || 0;
-            const tempSolo = parseFloat(c.temperaturasolo) || 0;
+            const umidade = parseFloat(c.humidade) || parseFloat(c.umidade) || parseFloat(c.umidade_relativa) || 0;
+            const evapotransp = parseFloat(c.evapotranspiracao) || parseFloat(c.evapotranpiracao) || 0;
+            const vento = parseFloat(c.velocidadedevento) || parseFloat(c.velocidadevento) || 0;
+            const tempSolo = parseFloat(c.temperaturasolo) || parseFloat(c.temperatura_solo) || 0;
             if (!mapaClima[d]) {
                 mapaClima[d] = { temp, chuva, umidade, evapotransp, vento, tempSolo };
             }
         } catch (e) {}
     });
+
+    console.group("📊 DEBUG: Cruzamento Clima × Preço");
+    console.log("Total registros clima mapeados:", Object.keys(mapaClima).length);
+    console.log("Total registros históricos de preço:", historicos.length);
+    console.log("Matches de datas encontrados com clima:", historicos.filter(h => mapaClima[h.date]).length);
+    console.groupEnd();
 
     let correlacoes = [];
     
@@ -411,62 +471,28 @@ function renderDashboard() {
     const pearsonTemp = Utils.getPearson(ptsTemp);
     if (ptsTemp.length > 1) correlacoes.push({ nome: 'Temperatura', r: pearsonTemp, pontos: ptsTemp.length });
 
-    let ptsChuva = [];
-    historicos.forEach(p => {
-        if (mapaClima[p.date] && mapaClima[p.date].chuva !== 0)
-            ptsChuva.push({ x: mapaClima[p.date].chuva, y: p.val });
+    // Evolução das Temperaturas
+    let tempLabels = [];
+    let tempVals = [];
+    Object.keys(mapaClima).sort().forEach(d => {
+        if (mapaClima[d] && mapaClima[d].temp !== 0) {
+            tempLabels.push(d);
+            tempVals.push(mapaClima[d].temp);
+        }
     });
-    const pearsonChuva = Utils.getPearson(ptsChuva);
-    if (ptsChuva.length > 1) correlacoes.push({ nome: 'Precipitação', r: pearsonChuva, pontos: ptsChuva.length });
-
-    let ptsUmidade = [];
-    historicos.forEach(p => {
-        if (mapaClima[p.date] && mapaClima[p.date].umidade !== 0)
-            ptsUmidade.push({ x: mapaClima[p.date].umidade, y: p.val });
-    });
-    const pearsonUmidade = Utils.getPearson(ptsUmidade);
-    if (ptsUmidade.length > 1) correlacoes.push({ nome: 'Umidade', r: pearsonUmidade, pontos: ptsUmidade.length });
-
-    let ptsEvapotransp = [];
-    historicos.forEach(p => {
-        if (mapaClima[p.date] && mapaClima[p.date].evapotransp !== 0)
-            ptsEvapotransp.push({ x: mapaClima[p.date].evapotransp, y: p.val });
-    });
-    const pearsonEvapotransp = Utils.getPearson(ptsEvapotransp);
-    if (ptsEvapotransp.length > 1) correlacoes.push({ nome: 'Evapotranspiração', r: pearsonEvapotransp, pontos: ptsEvapotransp.length });
-
-    let ptsVento = [];
-    historicos.forEach(p => {
-        if (mapaClima[p.date] && mapaClima[p.date].vento !== 0)
-            ptsVento.push({ x: mapaClima[p.date].vento, y: p.val });
-    });
-    const pearsonVento = Utils.getPearson(ptsVento);
-    if (ptsVento.length > 1) correlacoes.push({ nome: 'Velocidade do Vento', r: pearsonVento, pontos: ptsVento.length });
-
-    let ptsTempSolo = [];
-    historicos.forEach(p => {
-        if (mapaClima[p.date] && mapaClima[p.date].tempSolo !== 0)
-            ptsTempSolo.push({ x: mapaClima[p.date].tempSolo, y: p.val });
-    });
-    const pearsonTempSolo = Utils.getPearson(ptsTempSolo);
-    if (ptsTempSolo.length > 1) correlacoes.push({ nome: 'Temperatura do Solo', r: pearsonTempSolo, pontos: ptsTempSolo.length });
-
-    Charts.updateScatter('chTemp', ptsTemp, 'Temp ºC');
-    Charts.updateScatter('chChuva', ptsChuva, 'Chuva mm');
+    Charts.updateLineChart('chTemp', tempLabels, tempVals, 'Temp Média (ºC)');
     
-    document.getElementById('statTemp').innerText = `${ptsTemp.length} dias com dados • Correlação: ${pearsonTemp.toFixed(2)}`;
-    document.getElementById('statChuva').innerText = `${ptsChuva.length} dias com dados • Correlação: ${pearsonChuva.toFixed(2)}`;
+    document.getElementById('statTemp').innerText = `${tempLabels.length} dias de clima monitorados nas cidades produtoras.`;
 
-    renderCorrelationTable(correlacoes);
-    renderClimateEvidence(historicos, mapaClima, ptsTemp, ptsChuva);
-
-    Components.atualizarSemaforo(historicos);
-    if (document.getElementById('ia-insight')) {
-        Components.gerarInsightIA(historicos, pearsonTemp, pearsonChuva, ptsTemp, ptsChuva, correlacoes);
+    // Call lag analysis chart in charts.js
+    if (typeof Charts.updateLagChart === 'function') {
+        Charts.updateLagChart(historicos, mapaClima, appState.currentProduto);
     }
 
-    renderExtremeEvents(historicos, mapaClima);
-    populateHistoryTable();
+    // Calendário e visão do produtor
+    if (typeof Producer !== 'undefined') {
+        try { Producer.render(historicos, mapaClima, appState.currentProduto); } catch (err) { console.warn('Producer:', err); }
+    }
 }
 
 

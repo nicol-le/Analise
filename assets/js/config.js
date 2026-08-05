@@ -19,5 +19,6 @@ window.appState = {
     cityCoordinates: {},
     originTableData: [],
     originSortKey: 'VL_TONELADA',
-    originSortAsc: false
+    originSortAsc: false,
+    trecProfiles: {}
 };

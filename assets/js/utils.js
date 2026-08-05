@@ -4,30 +4,58 @@ const Utils = {
     toYMD(d) {
         if (!d) return null;
         try {
-            let date;
-            
-           
             if (typeof d === 'string') {
-               
+                d = d.trim();
+                // Match YYYY-MM-DD
                 if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
                     return d;
                 }
-              
-                if (/^\d+$/.test(d.trim())) {
-                    date = new Date(parseInt(d));
-                } else {
-                    date = new Date(d);
+                // Match YYYY-MM-DD with time/timestamp
+                if (/^\d{4}-\d{2}-\d{2}/.test(d)) {
+                    return d.substring(0, 10);
                 }
-            } else {
-                date = new Date(d);
+                // Match M/D/YYYY or D/M/YYYY or DD/MM/YYYY
+                if (d.includes('/')) {
+                    const parts = d.split('/');
+                    if (parts.length === 3) {
+                        let day, month, year;
+                        const p0 = parseInt(parts[0], 10);
+                        const p1 = parseInt(parts[1], 10);
+                        const p2 = parseInt(parts[2], 10);
+                        if (p2.toString().length === 4) {
+                            if (p0 > 12) {
+                                // Must be DD/MM/YYYY
+                                day = p0;
+                                month = p1;
+                            } else if (p1 > 12) {
+                                // Must be MM/DD/YYYY
+                                month = p0;
+                                day = p1;
+                            } else {
+                                // Ambiguous, e.g. 2/3/2023. Default to MM/DD/YYYY as seen in ceagesp table
+                                month = p0;
+                                day = p1;
+                            }
+                            year = p2;
+                            return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                        }
+                    }
+                }
+                if (/^\d+$/.test(d)) {
+                    const date = new Date(parseInt(d));
+                    if (!isNaN(date.getTime())) {
+                        const year = date.getFullYear();
+                        const month = String(date.getMonth() + 1).padStart(2, '0');
+                        const day = String(date.getDate()).padStart(2, '0');
+                        return `${year}-${month}-${day}`;
+                    }
+                }
             }
-            
+            const date = new Date(d);
             if (isNaN(date.getTime())) return null;
-            
             const year = date.getFullYear();
             const month = String(date.getMonth() + 1).padStart(2, '0');
             const day = String(date.getDate()).padStart(2, '0');
-            
             return `${year}-${month}-${day}`;
         } catch (e) {
             return null;

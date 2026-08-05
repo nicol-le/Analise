@@ -12,6 +12,7 @@
     
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet"/>
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1" rel="stylesheet"/>
+    <link rel="stylesheet" href="assets/css/style.css"/>
 
     <script id="tailwind-config">
         tailwind.config = {
@@ -38,13 +39,17 @@
         .tab-button.active { border-bottom-color: #8b0000 !important; color: #8b0000 !important; }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
+        .sub-tab-content { display: none; }
+        .sub-tab-content.active { display: block; }
+        .sub-tab-button { transition: all 0.2s ease; border-bottom: 2px solid transparent; }
+        .sub-tab-button.active { border-bottom-color: #8b0000 !important; color: #8b0000 !important; }
 
         .leaflet-popup-content-wrapper {
             font-family: 'Inter', sans-serif;
             border-radius: 12px !important;
             box-shadow: 0 8px 24px rgba(0,0,0,0.12) !important;
             border: 1px solid #e2e8f0;
-            padding: 0 !important;
+         s   padding: 0 !important;
         }
         .leaflet-popup-content {
             margin: 0 !important;
@@ -60,10 +65,122 @@
         .bg-primary-container { background-color: #8b0000; }
         .border-red-100 { border-color: #fee2e2; }
         .bg-red-50 { background-color: #fef2f2; }
+
+        /* TREC – velocímetro semicircular e modal */
+        .trec-gauge {
+            width: 180px; height: 90px; border-radius: 180px 180px 0 0;
+            position: relative; overflow: hidden; margin: 0 auto;
+            background: #e2e8f0;
+        }
+        .trec-gauge-fill {
+            position: absolute; inset: 0;
+            border-radius: 180px 180px 0 0;
+        }
+        .trec-gauge-center {
+            position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
+            width: 120px; height: 60px; background: white;
+            border-radius: 120px 120px 0 0;
+            display: flex; align-items: flex-end; justify-content: center;
+            padding-bottom: 4px;
+        }
+        .trec-modal-backdrop {
+            position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45);
+            z-index: 60; display: flex; align-items: center; justify-content: center; padding: 1rem;
+        }
+        .trec-modal-backdrop.hidden { display: none; }
+        .trec-dim-card { border-left-width: 4px; }
     </style>
 </head>
 
 <body class="bg-background text-slate-900 font-[Inter] min-h-screen md:pl-80">
+
+<!-- ========== TELA DE CARREGAMENTO ========== -->
+<div id="loadingOverlay" class="loading-overlay hidden">
+    <div class="loading-content">
+        <!-- Animação temática agrícola -->
+        <div class="loading-animation">
+            <svg class="loading-svg" viewBox="0 0 200 160" xmlns="http://www.w3.org/2000/svg">
+                <!-- Sol pulsante -->
+                <circle class="sun-glow" cx="100" cy="50" r="25" fill="#f59e0b" opacity="0.2"/>
+                <circle class="sun" cx="100" cy="50" r="16" fill="#fbbf24"/>
+                <!-- Raios do sol -->
+                <g class="sun-rays">
+                    <line x1="100" y1="20" x2="100" y2="10" stroke="#fbbf24" stroke-width="2" stroke-linecap="round"/>
+                    <line x1="100" y1="80" x2="100" y2="90" stroke="#fbbf24" stroke-width="2" stroke-linecap="round"/>
+                    <line x1="70" y1="50" x2="60" y2="50" stroke="#fbbf24" stroke-width="2" stroke-linecap="round"/>
+                    <line x1="130" y1="50" x2="140" y2="50" stroke="#fbbf24" stroke-width="2" stroke-linecap="round"/>
+                    <line x1="78" y1="28" x2="71" y2="21" stroke="#fbbf24" stroke-width="2" stroke-linecap="round"/>
+                    <line x1="122" y1="28" x2="129" y2="21" stroke="#fbbf24" stroke-width="2" stroke-linecap="round"/>
+                    <line x1="78" y1="72" x2="71" y2="79" stroke="#fbbf24" stroke-width="2" stroke-linecap="round"/>
+                    <line x1="122" y1="72" x2="129" y2="79" stroke="#fbbf24" stroke-width="2" stroke-linecap="round"/>
+                </g>
+                <!-- Nuvem flutuante -->
+                <g class="cloud">
+                    <ellipse cx="50" cy="35" rx="18" ry="8" fill="#cbd5e1"/>
+                    <ellipse cx="60" cy="33" rx="12" ry="7" fill="#cbd5e1"/>
+                    <ellipse cx="42" cy="34" rx="10" ry="6" fill="#cbd5e1"/>
+                </g>
+                <!-- Solo -->
+                <rect x="0" y="120" width="200" height="40" fill="#92400e" rx="2"/>
+                <rect x="0" y="120" width="200" height="6" fill="#a16207"/>
+                <!-- Plantas crescendo -->
+                <g class="plant plant-1">
+                    <path class="stem" d="M 60 120 Q 58 100 60 85" stroke="#16a34a" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+                    <ellipse class="leaf leaf-l" cx="54" cy="100" rx="7" ry="4" fill="#22c55e" transform="rotate(-30 54 100)"/>
+                    <ellipse class="leaf leaf-r" cx="66" cy="95" rx="7" ry="4" fill="#22c55e" transform="rotate(30 66 95)"/>
+                </g>
+                <g class="plant plant-2">
+                    <path class="stem" d="M 100 120 Q 98 95 100 75" stroke="#16a34a" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+                    <ellipse class="leaf leaf-l" cx="93" cy="92" rx="8" ry="4.5" fill="#22c55e" transform="rotate(-30 93 92)"/>
+                    <ellipse class="leaf leaf-r" cx="107" cy="85" rx="8" ry="4.5" fill="#22c55e" transform="rotate(30 107 85)"/>
+                    <ellipse class="leaf leaf-l2" cx="94" cy="78" rx="7" ry="4" fill="#4ade80" transform="rotate(-25 94 78)"/>
+                </g>
+                <g class="plant plant-3">
+                    <path class="stem" d="M 140 120 Q 142 105 140 90" stroke="#16a34a" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+                    <ellipse class="leaf leaf-l" cx="134" cy="105" rx="6" ry="3.5" fill="#22c55e" transform="rotate(-30 134 105)"/>
+                    <ellipse class="leaf leaf-r" cx="146" cy="100" rx="6" ry="3.5" fill="#22c55e" transform="rotate(30 146 100)"/>
+                </g>
+                <!-- Partículas flutuantes (sementes/pólen) -->
+                <circle class="particle p1" cx="30" cy="60" r="2" fill="#fbbf24" opacity="0.6"/>
+                <circle class="particle p2" cx="170" cy="70" r="1.5" fill="#fbbf24" opacity="0.5"/>
+                <circle class="particle p3" cx="150" cy="40" r="2" fill="#22c55e" opacity="0.4"/>
+                <circle class="particle p4" cx="25" cy="90" r="1.5" fill="#22c55e" opacity="0.5"/>
+            </svg>
+        </div>
+        
+        <!-- Título e mensagem -->
+        <h2 class="loading-title">Analisando Dados</h2>
+        <p class="loading-message" id="loadingMessage">Iniciando análise...</p>
+        
+        <!-- Barra de progresso -->
+        <div class="loading-bar-container">
+            <div class="loading-bar" id="loadingBar" style="width: 0%"></div>
+        </div>
+        <p class="loading-percent" id="loadingPercent">0%</p>
+        
+        <!-- Lista de etapas -->
+        <div class="loading-steps" id="loadingSteps">
+            <div class="step" data-step="1">
+                <span class="step-icon">○</span> Buscando preços no banco de dados
+            </div>
+            <div class="step" data-step="2">
+                <span class="step-icon">○</span> Coletando dados climáticos
+            </div>
+            <div class="step" data-step="3">
+                <span class="step-icon">○</span> Analisando sazonalidade e tendências
+            </div>
+            <div class="step" data-step="4">
+                <span class="step-icon">○</span> Montando mapa de produção
+            </div>
+            <div class="step" data-step="5">
+                <span class="step-icon">○</span> Calculando correlações clima × preço
+            </div>
+            <div class="step" data-step="6">
+                <span class="step-icon">○</span> Finalizando análise
+            </div>
+        </div>
+    </div>
+</div>
 
 <aside class="fixed left-0 top-0 bottom-0 z-40 h-full w-80 hidden md:flex flex-col bg-white border-r border-slate-200">
     <div class="p-6 flex items-center gap-3">
@@ -76,14 +193,11 @@
         </div>
     </div>
     <nav class="flex-1 px-4 space-y-1">
-        <div class="bg-primary-container text-white rounded-lg flex items-center px-4 py-3 cursor-pointer">
-            <span class="material-symbols-outlined mr-3 text-sm">dashboard</span> Dashboard
+        <div class="bg-primary-container text-white rounded-lg flex items-center px-4 py-3 cursor-pointer" onclick="switchTab('produtor')">
+            <span class="material-symbols-outlined mr-3 text-sm">agriculture</span> Para o Produtor
         </div>
-        <div class="text-slate-600 hover:bg-slate-50 rounded-lg flex items-center px-4 py-3 cursor-pointer transition-all">
-            <span class="material-symbols-outlined mr-3 text-sm">cloud</span> Clima & Preço
-        </div>
-        <div class="text-slate-600 hover:bg-slate-50 rounded-lg flex items-center px-4 py-3 cursor-pointer transition-all" onclick="document.querySelector('[onclick=\'switchTab(\\\'origem\\\')\']').click()">
-            <span class="material-symbols-outlined mr-3 text-sm">map</span> Mapa de Origens
+        <div class="text-slate-600 hover:bg-slate-50 rounded-lg flex items-center px-4 py-3 cursor-pointer transition-all" onclick="switchTab('analise')">
+            <span class="material-symbols-outlined mr-3 text-sm">analytics</span> Análise Técnica
         </div>
     </nav>
     <div class="p-6 border-t border-slate-100">
@@ -117,11 +231,30 @@
                 <datalist id="listVar"></datalist>
             </div>
             <div class="space-y-1">
-                <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">📅 Data de Referência <span class="normal-case font-normal text-slate-400">(opcional)</span></label>
-                <input type="date" id="dateRef" class="w-full rounded-lg border-slate-200 text-sm focus:ring-primary" title="Data até a qual calcular previsões. Se vazia, usa o último registro disponível.">
-                <p class="text-[9px] text-slate-400 mt-0.5">Se vazia, usa o último dado disponível</p>
+                <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Período Específico</label>
+                <div class="flex items-center gap-2">
+                    <input type="checkbox" id="useCustomPeriod" class="rounded border-slate-300 text-primary focus:ring-primary" onchange="toggleDateInputs()">
+                    <span class="text-xs text-slate-600">Ativar filtro</span>
+                </div>
+                <div class="flex gap-2 mt-2 opacity-50 pointer-events-none transition-opacity" id="dateInputsContainer">
+                    <input type="date" id="dateStart" class="w-full rounded-lg border-slate-200 text-xs focus:ring-primary" title="Data Inicial">
+                    <input type="date" id="dateEnd" class="w-full rounded-lg border-slate-200 text-xs focus:ring-primary" title="Data Final">
+                </div>
+                <p class="text-[9px] text-slate-400 mt-1">Se inativo, analisa de trás pra frente.</p>
             </div>
         </div>
+        
+        <script>
+            function toggleDateInputs() {
+                const checked = document.getElementById('useCustomPeriod').checked;
+                const container = document.getElementById('dateInputsContainer');
+                if(checked) {
+                    container.classList.remove('opacity-50', 'pointer-events-none');
+                } else {
+                    container.classList.add('opacity-50', 'pointer-events-none');
+                }
+            }
+        </script>
         
         <div class="mt-6 flex flex-col sm:flex-row justify-between items-center gap-4">
             <div class="inline-flex bg-slate-100 p-1 rounded-xl" id="timeControls">
@@ -137,385 +270,213 @@
 
     <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-0 overflow-hidden">
         <div class="flex border-b border-slate-200">
-            <button onclick="switchTab('simples')" class="tab-button active flex-1 py-4 px-6 font-bold text-sm flex items-center justify-center gap-2 text-slate-600 hover:text-primary">
-                <span class="material-symbols-outlined text-lg">dashboard</span> Visão Simples
+            <button onclick="switchTab('produtor')" class="tab-button active flex-1 py-4 px-6 font-bold text-sm flex items-center justify-center gap-2 text-slate-600 hover:text-primary">
+                <span class="material-symbols-outlined text-lg">agriculture</span> Para o Produtor
             </button>
-            <button onclick="switchTab('tecnica')" class="tab-button flex-1 py-4 px-6 font-bold text-sm flex items-center justify-center gap-2 text-slate-600 hover:text-primary">
-                <span class="material-symbols-outlined text-lg">bar_chart</span> Análise Técnica
-            </button>
-            <button onclick="switchTab('origem')" class="tab-button flex-1 py-4 px-6 font-bold text-sm flex items-center justify-center gap-2 text-slate-600 hover:text-primary">
-                <span class="material-symbols-outlined text-lg">map</span> Origem & Volume
+            <button onclick="switchTab('analise')" class="tab-button flex-1 py-4 px-6 font-bold text-sm flex items-center justify-center gap-2 text-slate-600 hover:text-primary">
+                <span class="material-symbols-outlined text-lg">analytics</span> Análise Técnica
             </button>
         </div>
     </div>
 
-    
-    <div id="tab-simples" class="tab-content active space-y-6">
-        <section class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <div class="bg-white p-5 rounded-2xl border border-slate-200">
-                <p class="text-[10px] font-bold text-slate-400 uppercase">Média Período</p>
-                <h3 class="text-2xl font-mono font-bold text-primary" id="st-media">R$ 0,00</h3>
-                <p class="text-[9px] text-slate-500 mt-2" id="st-media-date"></p>
-                <p class="text-[8px] text-slate-400 mt-1 font-semibold" id="st-unidade">por KG</p>
-            </div>
-            <div class="bg-white p-5 rounded-2xl border border-slate-200">
-                <p class="text-[10px] font-bold text-slate-400 uppercase">Mínimo</p>
-                <h3 class="text-2xl font-mono font-bold text-slate-700" id="st-min">R$ 0,00</h3>
-                <p class="text-[9px] text-slate-500 mt-2" id="st-min-date">-</p>
-            </div>
-            <div class="bg-white p-5 rounded-2xl border border-slate-200">
-                <p class="text-[10px] font-bold text-slate-400 uppercase">Máximo</p>
-                <h3 class="text-2xl font-mono font-bold text-red-600" id="st-max">R$ 0,00</h3>
-                <p class="text-[9px] text-slate-500 mt-2" id="st-max-date">-</p>
-            </div>
-            <div class="bg-white p-5 rounded-2xl border border-slate-200">
-                <p class="text-[10px] font-bold text-slate-400 uppercase">Desvio Padrão</p>
-                <h3 class="text-2xl font-mono font-bold text-slate-800" id="st-stddev">R$ 0,00</h3>
-                <p class="text-[9px] text-slate-500 mt-2" id="st-cv">CV: 0%</p>
-            </div>
-        </section>
-
-        <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                <h3 class="text-sm font-bold text-slate-800 mb-6 flex items-center gap-2">
-                    <span class="material-symbols-outlined text-primary">calendar_today</span> Sazonalidade Histórica
-                </h3>
-                <div class="chart-container"><canvas id="chSazonal"></canvas></div>
-            </div>
-            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                <h3 class="text-sm font-bold text-slate-800 mb-6 flex items-center gap-2">
-                    <span class="material-symbols-outlined text-primary">trending_up</span> Tendência de Preços
-                </h3>
-                <div class="chart-container"><canvas id="chEvolucao"></canvas></div>
-            </div>
-        </section>
-
+    <!-- ========== ABA PRINCIPAL: PRODUTOR ========== -->
+    <div id="tab-produtor" class="tab-content active space-y-6">
         <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-            <h3 class="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
-                <span class="material-symbols-outlined text-primary text-lg">lightbulb</span> Análise de Insights
-            </h3>
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div class="lg:col-span-1">
-                    <p class="text-xs font-bold text-slate-500 uppercase mb-3">Status do Mercado</p>
-                    <div class="flex gap-3">
-                        <div id="semaforo-circulo" class="w-16 h-16 rounded-full bg-slate-300 flex items-center justify-center flex-shrink-0 shadow-lg">
-                            <span class="material-symbols-outlined text-white text-2xl" id="semaforo-icon">help</span>
-                        </div>
-                        <div class="flex-1">
-                            <h4 class="font-bold text-slate-800 text-sm" id="semaforo-titulo">Carregando...</h4>
-                            <p class="text-xs text-slate-600 mt-1" id="semaforo-desc">Execute uma análise para ver o status</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="lg:col-span-2">
-                    <p class="text-xs font-bold text-slate-500 uppercase mb-3">Análise Detalhada</p>
-                    <div id="ia-insight" class="text-sm text-slate-700 leading-relaxed space-y-2 [&_strong]:font-bold [&_strong]:text-slate-800">
-                        <p class="text-slate-500 italic text-xs">Execute uma análise para gerar insights...</p>
-                    </div>
-                </div>
-            </div>
-        </section>
-    </div>
-
-    <div id="tab-tecnica" class="tab-content space-y-6">
-        <!-- GRÁFICO DE PREVISÃO -->
-        <section class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-            <h3 class="text-sm font-bold text-slate-800 mb-6 flex items-center gap-2">
-                <span class="material-symbols-outlined text-primary">trending_up</span> Previsão Temporal (Histórico + Previsão + Realidade)
-            </h3>
-            <div class="chart-container"><canvas id="chForecast"></canvas></div>
-            <p class="text-xs text-slate-500 mt-3 text-center" id="forecastInfo">Execute uma análise para gerar previsão...</p>
+            <h2 class="font-bold text-slate-800 text-lg flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary">waving_hand</span>
+                Resumo rápido para comercialização
+            </h2>
+            <p class="text-xs text-slate-500 mt-1">Linguagem simples, baseada no último mês com preço registrado. As análises estatísticas completas ficam na aba Técnica.</p>
         </section>
 
-       
-        <section class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <section class="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div class="bg-white p-5 rounded-2xl border border-slate-200">
-                <p class="text-[10px] font-bold text-slate-400 uppercase">Confiabilidade da Previsão</p>
-                <div class="flex items-center gap-3 mt-3">
-                    <div id="confidence-circle" class="w-16 h-16 rounded-full bg-slate-300 flex items-center justify-center flex-shrink-0 shadow-lg">
-                        <span class="material-symbols-outlined text-white text-3xl" id="confidence-icon">help</span>
-                    </div>
-                    <div>
-                        <h3 class="text-lg font-bold" id="confidence-level">-</h3>
-                        <p class="text-xs text-slate-500 mt-1" id="confidence-desc">Nenhuma análise executada</p>
-                    </div>
-                </div>
+                <p class="text-[10px] font-bold text-slate-400 uppercase">Preço mais recente</p>
+                <h3 class="text-2xl font-mono font-bold text-primary mt-1" id="prod-media">R$ —</h3>
+                <p class="text-[9px] text-slate-500 mt-2">Referência do último dia com dado</p>
             </div>
             <div class="bg-white p-5 rounded-2xl border border-slate-200">
-                <p class="text-[10px] font-bold text-slate-400 uppercase">Dados Históricos</p>
-                <h3 class="text-2xl font-mono font-bold text-primary mt-3" id="data-points">0</h3>
-                <p class="text-[9px] text-slate-500 mt-2">dias com preços registrados</p>
+                <p class="text-[10px] font-bold text-slate-400 uppercase">Momento de venda</p>
+                <h3 class="text-lg font-bold text-slate-700 mt-1" id="prod-status">Aguardando análise</h3>
+                <p class="text-[11px] text-slate-500 mt-2" id="prod-status-desc">Execute a análise para ver a recomendação.</p>
             </div>
             <div class="bg-white p-5 rounded-2xl border border-slate-200">
-                <p class="text-[10px] font-bold text-slate-400 uppercase">Erro Médio</p>
-                <h3 class="text-2xl font-mono font-bold text-slate-700 mt-3" id="mean-error">-</h3>
-                <p class="text-[9px] text-slate-500 mt-2">percentual de variação</p>
+                <p class="text-[10px] font-bold text-slate-400 uppercase">Melhor janela</p>
+                <p class="text-sm text-slate-700 mt-2" id="prodBestPeriod">—</p>
             </div>
         </section>
 
-        
-        <section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-            <div class="p-6 border-b border-slate-100">
-                <h2 class="font-bold text-slate-800 flex items-center gap-2">
-                    <span class="material-symbols-outlined text-primary">check_circle</span> Precisão da Previsão
-                </h2>
-                <p class="text-xs text-slate-500 mt-1">Comparação entre valores previstos e observados</p>
-            </div>
-            <div class="overflow-x-auto font-mono text-xs">
-                <table class="w-full text-left border-collapse">
-                    <thead>
-                        <tr class="bg-slate-50 border-b border-slate-100 text-slate-400">
-                            <th class="p-4">Data</th>
-                            <th class="p-4 text-right">Previsto</th>
-                            <th class="p-4 text-right">Real</th>
-                            <th class="p-4 text-right">Erro Abs</th>
-                            <th class="p-4 text-right">Erro %</th>
-                        </tr>
-                    </thead>
-                    <tbody id="forecastAccuracyTable" class="divide-y divide-slate-50">
-                        <tr class="hover:bg-slate-50 transition-colors">
-                            <td class="p-4 text-slate-500" colspan="5">Execute uma análise para gerar dados...</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </section>
-
-        <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                <h3 class="text-sm font-bold text-slate-800 mb-6">Correlação: Temperatura x Preço</h3>
-                <div class="chart-container"><canvas id="chTemp"></canvas></div>
-                <p class="text-xs text-slate-500 mt-3 text-center" id="statTemp">Carregando dados...</p>
-            </div>
-            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                <h3 class="text-sm font-bold text-slate-800 mb-6">Correlação: Chuva x Preço</h3>
-                <div class="chart-container"><canvas id="chChuva"></canvas></div>
-                <p class="text-xs text-slate-500 mt-3 text-center" id="statChuva">Carregando dados...</p>
-            </div>
-        </section>
-
-        <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
-                <div>
-                    <div class="flex items-center gap-3">
-                        <h2 class="font-bold text-slate-800">Evidência Clima × Preço</h2>
-                        <div id="climateSourceBadge" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200">
-                            Aguardando análise
-                        </div>
-                    </div>
-                    <p class="text-xs text-slate-500 mt-1">Dados climáticos provenientes da média ponderada pelo volume de produção (top 10 cidades) ou base de reserva.</p>
-                </div>
-                <span id="climateEvidenceMethod" class="text-[10px] font-mono text-slate-500 bg-slate-100 px-2.5 py-1 rounded">Aguardando análise</span>
-            </div>
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div class="p-4 bg-slate-50 rounded-xl">
-                    <p class="text-[10px] uppercase font-bold text-slate-400">Cobertura da amostra</p>
-                    <p id="climateEvidenceCoverage" class="mt-1 text-xl font-mono font-bold text-primary">—</p>
-                    <p class="text-[10px] text-slate-500 mt-1">dias de preço cruzados com clima</p>
-                </div>
-                <div class="p-4 bg-slate-50 rounded-xl">
-                    <p class="text-[10px] uppercase font-bold text-slate-400">Anomalia térmica recente</p>
-                    <p id="climateEvidenceAnomaly" class="mt-1 text-xl font-mono font-bold text-slate-700">—</p>
-                    <p id="climateEvidenceAnomalyDesc" class="text-[10px] text-slate-500 mt-1">comparada à média do período</p>
-                </div>
-                <div class="p-4 bg-slate-50 rounded-xl">
-                    <p class="text-[10px] uppercase font-bold text-slate-400">Diferença por faixa térmica</p>
-                    <p id="climateEvidenceEffect" class="mt-1 text-xl font-mono font-bold text-slate-700">—</p>
-                    <p id="climateEvidenceEffectDesc" class="text-[10px] text-slate-500 mt-1">preço médio: 25% mais quentes vs. frios</p>
-                </div>
-            </div>
-            <p id="climateEvidenceConclusion" class="mt-5 text-xs leading-relaxed text-slate-600">A análise será preenchida após executar a consulta.</p>
-        </section>
-
-        <section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-            <div class="p-6 border-b border-slate-100">
-                <h2 class="font-bold text-slate-800">Análise Climática Multivariada</h2>
-                <p class="text-xs text-slate-500 mt-1">Correlação de múltiplos fatores climáticos com o preço</p>
-            </div>
-            <div class="overflow-x-auto font-mono text-xs">
-                <table class="w-full text-left border-collapse">
-                    <thead>
-                        <tr class="bg-slate-50 border-b border-slate-100 text-slate-400">
-                            <th class="p-4">Fator Climático</th>
-                            <th class="p-4 text-right">Correlação (r)</th>
-                            <th class="p-4 text-right">Força</th>
-                            <th class="p-4 text-right">Direção</th>
-                            <th class="p-4 text-right">Pontos</th>
-                        </tr>
-                    </thead>
-                    <tbody id="climateCorrelationTable" class="divide-y divide-slate-50">
-                        <tr class="hover:bg-slate-50 transition-colors">
-                            <td class="p-4 text-slate-500" colspan="5">Execute uma análise para gerar dados...</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </section>
-
-        <section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-            <div class="p-6 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                <div>
-                    <h2 class="font-bold text-slate-800 flex items-center gap-2">
-                        <span class="material-symbols-outlined text-primary">warning</span> Eventos Climáticos Extremos & Resposta de Mercado
-                    </h2>
-                    <p class="text-xs text-slate-500 mt-1">Impacto acumulado no preço médio em janelas pós-evento (7, 14 e 30 dias) comparado à referência pré-evento (14d).</p>
-                </div>
-                <span class="text-[10px] bg-blue-50 text-blue-700 px-2.5 py-1 rounded font-bold border border-blue-100">Janelas Pós-Evento (+7d, +14d, +30d)</span>
-            </div>
-            <div class="overflow-x-auto font-mono text-xs">
-                <table class="w-full text-left border-collapse">
-                    <thead>
-                        <tr class="bg-slate-50 border-b border-slate-100 text-slate-400">
-                            <th class="p-4">Data Evento</th>
-                            <th class="p-4">Tipo de Condição</th>
-                            <th class="p-4 text-right">Valor Extremo</th>
-                            <th class="p-4 text-right">Preço Ref. (14d pré)</th>
-                            <th class="p-4 text-right">Var. +7d</th>
-                            <th class="p-4 text-right">Var. +14d</th>
-                            <th class="p-4 text-right">Var. +30d</th>
-                        </tr>
-                    </thead>
-                    <tbody id="extremeEventsTable" class="divide-y divide-slate-50">
-                        <tr class="hover:bg-slate-50 transition-colors">
-                            <td class="p-4 text-slate-500" colspan="7">Execute uma análise para gerar dados...</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-           
-            <div class="p-6 bg-slate-50 border-t border-slate-100 text-xs text-slate-600 leading-relaxed space-y-2">
-                <div class="flex items-center gap-2 font-bold text-slate-800">
-                    <span class="material-symbols-outlined text-primary text-base">science</span>
-                    Justificativa Metodológica & Agronômica
-                </div>
-                <ul class="list-disc list-inside space-y-1 text-slate-600 pl-1">
-                    <li><strong>Linha de Base Referencial:</strong> O valor pré-evento compara o preço médio das janelas pós-evento (+7, +14 e +30 dias) com a média dos 14 dias anteriores ao choque climático, evitando oscilações ruidosas de 1 único dia.</li>
-                    <li><strong>Janelas de Resposta Agrícola:</strong> Defasagens de 7 a 30 dias capturam o tempo de maturação da cultura, estresse hídrico, atrasos na colheita e recomposição da logística regional de transporte.</li>
-                    <li><strong>Associação vs Causalidade:</strong> Flutuações de preços em commodities hortícolas dependem de múltiplos determinantes (volume de safra concorrente, frete, custos de insumo e sazonalidade mensal). Variações estatísticas indicam correlação histórica e não causalidade direta exclusiva.</li>
-                </ul>
-            </div>
-        </section>
-
-        <section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-            <div class="p-6 border-b border-slate-100 flex justify-between items-center">
-                <h2 class="font-bold text-slate-800">Histórico Anual Consolidado</h2>
-                <span class="text-[10px] bg-slate-100 px-2 py-1 rounded font-bold text-slate-500 uppercase">Média Mensal</span>
-            </div>
-            <div class="overflow-x-auto font-mono text-xs">
-                <table class="w-full text-left border-collapse">
-                    <thead>
-                        <tr class="bg-slate-50 border-b border-slate-100 text-slate-400">
-                            <th class="p-4">Ano</th>
-                            <th>Jan</th><th>Fev</th><th>Mar</th><th>Abr</th><th>Mai</th><th>Jun</th>
-                            <th>Jul</th><th>Ago</th><th>Set</th><th>Out</th><th>Nov</th><th>Dez</th>
-                        </tr>
-                    </thead>
-                    <tbody id="historyTableBody" class="divide-y divide-slate-50">
-                    </tbody>
-                </table>
-            </div>
-        </section>
-    </div>
-
-    <div id="tab-origem" class="tab-content space-y-6">
         <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-           
-            <div class="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col">
-                <h3 class="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
-                    <span class="material-symbols-outlined text-primary">map</span> Mapa de calor: cidades produtoras (2022)
+            <div class="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+                    <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2" id="prodCalendarTitle">
+                        <span class="material-symbols-outlined text-primary">calendar_month</span> Calendário de venda
                 </h3>
-                <p class="text-xs text-slate-500 mb-3">A intensidade e o tamanho representam o volume recebido. O clima é calculado separadamente com média ponderada das 10 maiores origens.</p>
-                <input type="text" id="originMapFilter" oninput="filterOriginMap()" class="mb-4 w-full rounded-lg border-slate-200 text-xs focus:ring-primary focus:border-primary" placeholder="Filtrar mapa por cidade ou UF...">
-                <div id="map-container" class="rounded-xl border border-slate-100 shadow-inner" style="height: 420px; min-height: 420px; z-index: 10;"></div>
+                    <div class="flex flex-wrap gap-2 text-[9px] font-bold">
+                        <span class="px-2 py-0.5 rounded bg-green-500 text-white">Ótimo</span>
+                        <span class="px-2 py-0.5 rounded bg-green-100 text-green-900">Bom</span>
+                        <span class="px-2 py-0.5 rounded bg-slate-100 text-slate-600">Ok</span>
+                        <span class="px-2 py-0.5 rounded bg-amber-50 text-amber-800">Fraco</span>
+                        <span class="px-2 py-0.5 rounded bg-red-50 text-red-800">Ruim</span>
+                    </div>
+                </div>
+                <div id="prodCalendarGrid" class="grid grid-cols-7 gap-1.5"></div>
+                <p class="text-[11px] text-slate-600 mt-4 leading-relaxed" id="prodCalendarTip">Execute uma análise para ver os melhores dias e semanas para levar o produto.</p>
             </div>
             
- 
-            <div class="lg:col-span-1 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col">
+                <h3 class="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2 text-primary">
+                    <span class="material-symbols-outlined">smart_toy</span> Consultor Virtual
+                </h3>
+                <div class="flex-1 bg-surface p-4 rounded-xl border border-slate-100 text-sm text-slate-700 leading-relaxed overflow-y-auto" style="max-height: 250px;">
+                    <p id="bot-explicacao" class="italic text-slate-500">Olá! Eu sou o seu consultor. Execute uma análise para que eu possa avaliar as temperaturas recentes e lhe explicar como isso deve afetar os preços dessa semana!</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+            <h3 class="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary">psychology</span> Curiosidades e Informações da Cultura
+            </h3>
+            <div id="producer-curiosities" class="text-sm text-slate-700 leading-relaxed bg-amber-50/50 p-4 rounded-xl border border-amber-100">
+                <p class="text-slate-500 italic text-xs">Execute uma análise para ver informações sobre este produto...</p>
+            </div>
+        </section>
+
+        <!-- MAPA DE ORIGEM RESTAURADO -->
+        <section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                 <div>
-                    <h3 class="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
-                        <span class="material-symbols-outlined text-primary">local_shipping</span> Resumo Logístico
-                    </h3>
-                    <div class="space-y-4">
-                        <div class="p-4 bg-slate-50 rounded-xl">
-                            <p class="text-[10px] font-bold text-slate-400 uppercase">Volume Total Recebido</p>
-                            <h3 class="text-2xl font-mono font-bold text-primary mt-1" id="log-total-volume">0,00 t</h3>
-                            <p class="text-[9px] text-slate-500 mt-1">Soma de todas as regiões em 2022</p>
-                        </div>
-                        <div class="p-4 bg-slate-50 rounded-xl">
-                            <p class="text-[10px] font-bold text-slate-400 uppercase">Estados Fornecedores</p>
-                            <h3 class="text-2xl font-mono font-bold text-slate-700 mt-1" id="log-total-states">0</h3>
-                            <p class="text-[9px] text-slate-500 mt-1">Unidades federativas produtoras</p>
-                        </div>
-                        <div class="p-4 bg-slate-50 rounded-xl">
-                            <p class="text-[10px] font-bold text-slate-400 uppercase">Municípios Produtores</p>
-                            <h3 class="text-2xl font-mono font-bold text-slate-700 mt-1" id="log-total-cities">0</h3>
-                            <p class="text-[9px] text-slate-500 mt-1">Cidades com cargas registradas</p>
+                <h2 class="font-bold text-slate-800 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-primary">map</span> Mapa de Produção
+                </h2>
+                    <p class="text-xs text-slate-500 mt-1">Principais cidades produtoras (Fonte: IBGE)</p>
+            </div>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-4">
+                <div class="md:col-span-1 border-r border-slate-100 bg-white">
+                    <div class="p-5 flex flex-col gap-4">
+                        <div>
+                            <p class="text-[10px] uppercase font-bold text-slate-400">Volume Total Mapeado</p>
+                            <p id="log-total-volume" class="mt-1 text-xl font-mono font-bold text-primary">—</p>
+            </div>
+                        <div>
+                            <p class="text-[10px] uppercase font-bold text-slate-400">Cidades Produtoras</p>
+                            <p id="log-total-cities" class="mt-1 text-lg font-mono font-bold text-slate-700">—</p>
+            </div>
+                <div>
+                            <p class="text-[10px] uppercase font-bold text-slate-400">Estados (UF)</p>
+                            <p id="log-total-states" class="mt-1 text-lg font-mono font-bold text-slate-700">—</p>
                         </div>
                     </div>
                 </div>
-                <div class="mt-4 pt-4 border-t border-slate-100 text-[10px] text-slate-400 leading-relaxed">
-                    💡 <em>Dica: Passe o mouse ou clique sobre as bolhas no mapa para ver o detalhamento por estado e a lista das principais cidades produtoras.</em>
+                <div class="md:col-span-3 flex flex-col">
+                    <div class="p-3 bg-slate-50 border-b border-slate-200 flex gap-2">
+                        <input type="text" id="originMapFilter" oninput="filterOriginMap()" placeholder="Filtrar mapa..." class="text-xs px-2 py-1 border border-slate-300 rounded">
+            </div>
+                    <div id="map-container" style="height: 400px; width: 100%; z-index: 1;"></div>
                 </div>
             </div>
-        </section>
-
-
-        <section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-            <div class="p-6 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div>
-                    <h2 class="font-bold text-slate-800 flex items-center gap-2">
-                        <span class="material-symbols-outlined text-primary">location_on</span> Detalhamento das Origens (2022)
-                    </h2>
-                    <p class="text-xs text-slate-500 mt-1">Municípios produtores e volumes enviados ao terminal</p>
+            
+            <div class="p-6 border-t border-slate-100 bg-white">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-sm font-bold text-slate-800">Cidades Produtoras</h3>
+                    <input type="text" id="originSearch" oninput="renderOriginTable()" placeholder="Buscar cidade/UF..." class="text-xs px-3 py-1.5 border border-slate-200 rounded-lg w-64 focus:ring-primary focus:border-primary">
                 </div>
-                <div class="relative w-full sm:w-64">
-                    <span class="material-symbols-outlined absolute left-3 top-2.5 text-slate-400 text-sm">search</span>
-                    <input type="text" id="originSearch" oninput="filterOriginTable()" class="pl-9 w-full rounded-lg border-slate-200 text-xs focus:ring-primary focus:border-primary" placeholder="Filtrar por município ou UF...">
-                </div>
-            </div>
-            <div class="overflow-x-auto font-mono text-xs max-h-96 overflow-y-auto">
-                <table class="w-full text-left border-collapse">
-                    <thead>
-                        <tr class="bg-slate-50 border-b border-slate-100 text-slate-400 sticky top-0 z-10">
-                            <th class="p-4 cursor-pointer hover:text-primary transition-colors" onclick="sortOriginTable('MUNICIPIO')">Município <span id="sort-icon-MUNICIPIO" class="text-[9px]"></span></th>
-                            <th class="p-4 cursor-pointer hover:text-primary transition-colors" onclick="sortOriginTable('UF')">Estado (UF) <span id="sort-icon-UF" class="text-[9px]"></span></th>
-                            <th class="p-4 text-right cursor-pointer hover:text-primary transition-colors" onclick="sortOriginTable('VL_TONELADA')">Volume (Tons) <span id="sort-icon-VL_TONELADA" class="text-[9px]">▲</span></th>
-                            <th class="p-4 text-right cursor-pointer hover:text-primary transition-colors" onclick="sortOriginTable('PERCENT')">Part. (%) <span id="sort-icon-PERCENT" class="text-[9px]"></span></th>
+                <div class="overflow-y-auto" style="max-height: 250px;">
+                    <table class="w-full text-left border-collapse text-xs">
+                        <thead class="sticky top-0 bg-slate-50 text-slate-500">
+                            <tr>
+                                <th class="p-3 cursor-pointer hover:bg-slate-100" onclick="sortOriginTable('MUNICIPIO')">Município</th>
+                                <th class="p-3 cursor-pointer hover:bg-slate-100" onclick="sortOriginTable('UF')">UF</th>
+                                <th class="p-3 cursor-pointer hover:bg-slate-100 text-right" onclick="sortOriginTable('VL_TONELADA')">Volume (t)</th>
+                                <th class="p-3 cursor-pointer hover:bg-slate-100 text-right" onclick="sortOriginTable('PERCENT')">Participação (%)</th>
                         </tr>
                     </thead>
-                    <tbody id="originTableBody" class="divide-y divide-slate-50">
-                        <tr class="hover:bg-slate-50 transition-colors">
-                            <td class="p-4 text-slate-500" colspan="4">Execute uma análise para carregar origens...</td>
-                        </tr>
+                        <tbody id="originTableBody" class="divide-y divide-slate-100">
+                            <tr><td colspan="4" class="p-4 text-center text-slate-400">Execute a análise para carregar os dados...</td></tr>
                     </tbody>
                 </table>
+                </div>
             </div>
         </section>
+    </div>
+
+    <!-- ========== ABA TÉCNICA (Simplificada) ========== -->
+    <div id="tab-analise" class="tab-content space-y-6">
+        
+        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm mb-6">
+            <h3 class="text-sm font-bold text-slate-800 mb-2 flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary">info</span> Metodologia de Análise
+            </h3>
+            <p class="text-xs text-slate-600">Esta aba avalia os impactos diretos do clima (média das principais cidades produtoras) no preço do produto avaliado. Cada grupo de cultura (ex: Frutas, Hortaliças) possui um "lag" (atraso) diferente para refletir as altas temperaturas no preço.</p>
+        </div>
+
+        <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <h3 class="text-sm font-bold text-slate-800 mb-6 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-primary">thermostat</span> Evolução das Temperaturas
+                </h3>
+                <div class="chart-container"><canvas id="chTemp"></canvas></div>
+                <p class="text-xs text-slate-500 mt-3 text-center" id="statTemp">Temperaturas médias diárias nas principais regiões produtoras.</p>
+            </div>
+            
+            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <h3 class="text-sm font-bold text-slate-800 mb-6 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-primary">trending_up</span> Impacto de Eventos Climáticos (Lag)
+                    </h3>
+                <div class="chart-container"><canvas id="chLag"></canvas></div>
+                <p class="text-xs text-slate-500 mt-3 text-center" id="statLag">Demonstra a variação do preço após eventos de temperatura anômala (picos).</p>
+            </div>
+        </section>
+
     </div>
 </main>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
 <script src="assets/js/config.js"></script>
 <script src="assets/js/utils.js"></script>
 <script src="assets/js/api.js"></script>
 <script src="assets/js/charts.js"></script>
-<script src="assets/js/map.js"></script>
 <script src="assets/js/components.js"></script>
+<script src="assets/js/producer.js"></script>
+
+<!-- Leaflet Dependencies -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+<script src="assets/js/map.js"></script>
+
 <script src="assets/js/main.js"></script>
 
 <script>
+    window.currentSubTab = 'simples';
+
     function switchTab(tab) {
         document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
         document.querySelectorAll('.tab-button').forEach(el => el.classList.remove('active'));
      
-        document.getElementById('tab-' + tab).classList.add('active');
-        event.target.closest('button').classList.add('active');
-        
-        if (tab === 'origem' && window.appMap) {
-            setTimeout(() => {
-                window.appMap.invalidateSize();
-            }, 100);
+        const panel = document.getElementById('tab-' + tab);
+        if (panel) panel.classList.add('active');
+
+        const btn = document.querySelector(`.tab-button[onclick*="'${tab}'"]`);
+        if (btn) btn.classList.add('active');
+
+        document.querySelectorAll('aside nav > div').forEach(el => {
+            el.classList.remove('bg-primary-container', 'text-white');
+            el.classList.add('text-slate-600');
+        });
+        const sideMap = { produtor: 0, analise: 1 };
+        const sideItems = document.querySelectorAll('aside nav > div');
+        const sideIdx = sideMap[tab];
+        if (sideItems[sideIdx] != null) {
+            sideItems[sideIdx].classList.add('bg-primary-container', 'text-white');
+            sideItems[sideIdx].classList.remove('text-slate-600');
+        }
+
+        // Fix map rendering issue when switching tabs
+        if (tab === 'produtor' && window.appMap) {
+            setTimeout(() => window.appMap.invalidateSize(), 100);
         }
     }
 </script>

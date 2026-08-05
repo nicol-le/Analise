@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>CEAGESP</title>
+    
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1" rel="stylesheet"/>
+
+    <script id="tailwind-config">
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#610000",
+                        "primary-container": "#8b0000",
+                        "surface": "#f7f9fb",
+                        "outline": "#8e706b",
+                        "background": "#f7f9fb",
+                    },
+                    borderRadius: { "DEFAULT": "0.125rem", "lg": "0.5rem", "xl": "1rem" }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .chart-container { position: relative; height: 320px; width: 100%; }
+        .active-time { background: white !important; color: #8b0000 !important; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .tab-button { transition: all 0.3s ease; }
+        .tab-button.active { border-bottom: 2px solid #8b0000; color: #8b0000; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+    </style>
+</head>
+
+<body class="bg-background text-slate-900 font-[Inter] min-h-screen md:pl-80">
+
+<aside class="fixed left-0 top-0 bottom-0 z-40 h-full w-80 hidden md:flex flex-col bg-white border-r border-slate-200">
+    <div class="p-6 flex items-center gap-3">
+        <div class="w-10 h-10 rounded-lg bg-primary-container flex items-center justify-center text-white">
+            <span class="material-symbols-outlined">analytics</span>
+        </div>
+        <div>
+            <h2 class="font-bold text-primary text-lg">Analista de Mercado</h2>
+            <p class="text-xs text-slate-500">CEAGESP Terminal</p>
+        </div>
+    </div>
+    <nav class="flex-1 px-4 space-y-1">
+        <div class="bg-primary-container text-white rounded-lg flex items-center px-4 py-3 cursor-pointer">
+            <span class="material-symbols-outlined mr-3 text-sm">dashboard</span> Dashboard
+        </div>
+        <div class="text-slate-600 hover:bg-slate-50 rounded-lg flex items-center px-4 py-3 cursor-pointer transition-all">
+            <span class="material-symbols-outlined mr-3 text-sm">cloud</span> Clima & Preço
+        </div>
+    </nav>
+    <div class="p-6 border-t border-slate-100">
+        <div class="flex items-center gap-2">
+            <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+            <p class="text-xs font-mono text-slate-500" id="status-label">SISTEMA ONLINE</p>
+        </div>
+    </div>
+</aside>
+
+<header class="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-slate-200 px-6 h-16 flex items-center justify-between">
+    <h1 class="text-lg font-bold text-slate-800 md:hidden">CEAGESP</h1>
+    <div class="flex items-center gap-4 ml-auto">
+        <span class="material-symbols-outlined text-slate-400 cursor-pointer">notifications</span>
+        <div class="w-8 h-8 rounded-full bg-slate-200"></div>
+    </div>
+</header>
+
+<main class="p-6 max-w-7xl mx-auto space-y-6">
+    
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div class="space-y-1">
+                <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Produto</label>
+                <input list="listProd" id="prodInp" onchange="loadVariedades()" class="w-full rounded-lg border-slate-200 text-sm focus:ring-primary" placeholder="Buscar produto...">
+                <datalist id="listProd"></datalist>
+            </div>
+            <div class="space-y-1">
+                <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Variedade</label>
+                <input list="listVar" id="varInp" class="w-full rounded-lg border-slate-200 text-sm focus:ring-primary" placeholder="Todas as variedades">
+                <datalist id="listVar"></datalist>
+            </div>
+            <div class="space-y-1">
+                <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Início</label>
+                <input type="date" id="dateIni" class="w-full rounded-lg border-slate-200 text-sm focus:ring-primary">
+            </div>
+            <div class="space-y-1">
+                <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Fim</label>
+                <input type="date" id="dateFim" class="w-full rounded-lg border-slate-200 text-sm focus:ring-primary">
+            </div>
+        </div>
+        
+        <div class="mt-6 flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div class="inline-flex bg-slate-100 p-1 rounded-xl" id="timeControls">
+                <button onclick="changeGranularity('diario', this)" class="px-4 py-2 text-xs font-bold rounded-lg transition-all active-time">DIÁRIO</button>
+                <button onclick="changeGranularity('semanal', this)" class="px-4 py-2 text-xs font-bold rounded-lg transition-all text-slate-500">SEMANAL</button>
+                <button onclick="changeGranularity('mensal', this)" class="px-4 py-2 text-xs font-bold rounded-lg transition-all text-slate-500">MENSAL</button>
+            </div>
+            <button onclick="processar()" class="w-full sm:w-auto px-8 py-3 bg-primary-container text-white font-bold rounded-xl hover:bg-primary transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-900/20">
+                <span class="material-symbols-outlined text-sm">analytics</span> EXECUTAR ANÁLISE
+            </button>
+        </div>
+    </section>
+
+    <!-- ABAS DE NAVEGAÇÃO -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-0 overflow-hidden">
+        <div class="flex border-b border-slate-200">
+            <button onclick="switchTab('simples')" class="tab-button active flex-1 py-4 px-6 font-bold text-sm flex items-center justify-center gap-2 text-slate-600 hover:text-primary">
+                <span class="material-symbols-outlined text-lg">dashboard</span> Visão Simples
+            </button>
+            <button onclick="switchTab('tecnica')" class="tab-button flex-1 py-4 px-6 font-bold text-sm flex items-center justify-center gap-2 text-slate-600 hover:text-primary">
+                <span class="material-symbols-outlined text-lg">bar_chart</span> Análise Técnica
+            </button>
+        </div>
+    </div>
+
+    <!-- ABA: VISÃO SIMPLES -->
+    <div id="tab-simples" class="tab-content active space-y-6">
+        <section class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-white p-5 rounded-2xl border border-slate-200">
+            <p class="text-[10px] font-bold text-slate-400 uppercase">Média Período</p>
+            <h3 class="text-2xl font-mono font-bold text-primary" id="st-media">R$ 0,00</h3>
+            <p class="text-[9px] text-slate-500 mt-2" id="st-media-date"></p>
+            <p class="text-[8px] text-slate-400 mt-1 font-semibold" id="st-unidade">por KG</p>
+        </div>
+        <div class="bg-white p-5 rounded-2xl border border-slate-200">
+            <p class="text-[10px] font-bold text-slate-400 uppercase">Mínimo</p>
+            <h3 class="text-2xl font-mono font-bold text-slate-700" id="st-min">R$ 0,00</h3>
+            <p class="text-[9px] text-slate-500 mt-2" id="st-min-date">-</p>
+        </div>
+        <div class="bg-white p-5 rounded-2xl border border-slate-200">
+            <p class="text-[10px] font-bold text-slate-400 uppercase">Máximo</p>
+            <h3 class="text-2xl font-mono font-bold text-red-600" id="st-max">R$ 0,00</h3>
+            <p class="text-[9px] text-slate-500 mt-2" id="st-max-date">-</p>
+        </div>
+        <div class="bg-white p-5 rounded-2xl border border-slate-200">
+            <p class="text-[10px] font-bold text-slate-400 uppercase">Desvio Padrão</p>
+            <h3 class="text-2xl font-mono font-bold text-slate-800" id="st-stddev">R$ 0,00</h3>
+            <p class="text-[9px] text-slate-500 mt-2" id="st-cv">CV: 0%</p>
+        </div>
+    </section>
+
+    <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+            <h3 class="text-sm font-bold text-slate-800 mb-6 flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary">calendar_today</span> Sazonalidade Histórica
+            </h3>
+            <div class="chart-container"><canvas id="chSazonal"></canvas></div>
+        </div>
+        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+            <h3 class="text-sm font-bold text-slate-800 mb-6 flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary">trending_up</span> Tendência de Preços
+            </h3>
+            <div class="chart-container"><canvas id="chEvolucao"></canvas></div>
+        </div>
+    </section>
+
+    <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+            <h3 class="text-sm font-bold text-slate-800 mb-6">Correlação: Temperatura x Preço</h3>
+            <div class="chart-container"><canvas id="chTemp"></canvas></div>
+            <p class="text-xs text-slate-500 mt-3 text-center" id="statTemp">Carregando dados...</p>
+        </div>
+        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+            <h3 class="text-sm font-bold text-slate-800 mb-6">Correlação: Chuva x Preço</h3>
+            <div class="chart-container"><canvas id="chChuva"></canvas></div>
+            <p class="text-xs text-slate-500 mt-3 text-center" id="statChuva">Carregando dados...</p>
+        </div>
+    </section>
+
+    <section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="p-6 border-b border-slate-100">
+            <h2 class="font-bold text-slate-800">Análise Climática Multivariada</h2>
+            <p class="text-xs text-slate-500 mt-1">Correlação de múltiplos fatores climáticos com o preço</p>
+        </div>
+        <div class="overflow-x-auto font-mono text-xs">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-slate-50 border-b border-slate-100 text-slate-400">
+                        <th class="p-4">Fator Climático</th>
+                        <th class="p-4 text-right">Correlação (r)</th>
+                        <th class="p-4 text-right">Força</th>
+                        <th class="p-4 text-right">Direção</th>
+                        <th class="p-4 text-right">Pontos</th>
+                    </tr>
+                </thead>
+                <tbody id="climateCorrelationTable" class="divide-y divide-slate-50">
+                    <tr class="hover:bg-slate-50 transition-colors">
+                        <td class="p-4 text-slate-500" colspan="5">Execute uma análise para gerar dados...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+            <h3 class="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary text-lg">lightbulb</span> Análise de Insights
+            </h3>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="lg:col-span-1">
+                <p class="text-xs font-bold text-slate-500 uppercase mb-3">Status do Mercado</p>
+                <div class="flex gap-3">
+                    <div id="semaforo-circulo" class="w-16 h-16 rounded-full bg-slate-300 flex items-center justify-center flex-shrink-0 shadow-lg">
+                        <span class="material-symbols-outlined text-white text-2xl" id="semaforo-icon">help</span>
+                    </div>
+                    <div class="flex-1">
+                        <h4 class="font-bold text-slate-800 text-sm" id="semaforo-titulo">Carregando...</h4>
+                        <p class="text-xs text-slate-600 mt-1" id="semaforo-desc">Execute uma análise para ver o status</p>
+                    </div>
+                </div>
+            </div>
+            <div class="lg:col-span-2">
+                <p class="text-xs font-bold text-slate-500 uppercase mb-3">Análise Detalhada</p>
+                <div id="ia-insight" class="text-sm text-slate-700 leading-relaxed space-y-2 [&_strong]:font-bold [&_strong]:text-slate-800">
+                    <p class="text-slate-500 italic text-xs">Execute uma análise para gerar insights...</p>
+                </div>
+            </div>
+        </div>
+        </section>
+    </div>
+
+    <!-- ABA: ANÁLISE TÉCNICA -->
+    <div id="tab-tecnica" class="tab-content space-y-6">
+        <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <h3 class="text-sm font-bold text-slate-800 mb-6">Correlação: Temperatura x Preço</h3>
+                <div class="chart-container"><canvas id="chTemp"></canvas></div>
+                <p class="text-xs text-slate-500 mt-3 text-center" id="statTemp">Carregando dados...</p>
+            </div>
+            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <h3 class="text-sm font-bold text-slate-800 mb-6">Correlação: Chuva x Preço</h3>
+                <div class="chart-container"><canvas id="chChuva"></canvas></div>
+                <p class="text-xs text-slate-500 mt-3 text-center" id="statChuva">Carregando dados...</p>
+            </div>
+        </section>
+
+        <section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="p-6 border-b border-slate-100">
+                <h2 class="font-bold text-slate-800">Análise Climática Multivariada</h2>
+                <p class="text-xs text-slate-500 mt-1">Correlação de múltiplos fatores climáticos com o preço</p>
+            </div>
+            <div class="overflow-x-auto font-mono text-xs">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-slate-50 border-b border-slate-100 text-slate-400">
+                            <th class="p-4">Fator Climático</th>
+                            <th class="p-4 text-right">Correlação (r)</th>
+                            <th class="p-4 text-right">Força</th>
+                            <th class="p-4 text-right">Direção</th>
+                            <th class="p-4 text-right">Pontos</th>
+                        </tr>
+                    </thead>
+                    <tbody id="climateCorrelationTable" class="divide-y divide-slate-50">
+                        <tr class="hover:bg-slate-50 transition-colors">
+                            <td class="p-4 text-slate-500" colspan="5">Execute uma análise para gerar dados...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="p-6 border-b border-slate-100 flex justify-between items-center">
+                <h2 class="font-bold text-slate-800">Histórico Anual Consolidado</h2>
+                <span class="text-[10px] bg-slate-100 px-2 py-1 rounded font-bold text-slate-500 uppercase">Média Mensal</span>
+            </div>
+            <div class="overflow-x-auto font-mono text-xs">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-slate-50 border-b border-slate-100 text-slate-400">
+                            <th class="p-4">Ano</th>
+                            <th>Jan</th><th>Fev</th><th>Mar</th><th>Abr</th><th>Mai</th><th>Jun</th>
+                            <th>Jul</th><th>Ago</th><th>Set</th><th>Out</th><th>Nov</th><th>Dez</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyTableBody" class="divide-y divide-slate-50">
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+</main>
+
+<script src="assets/js/config.js"></script>
+<script src="assets/js/utils.js"></script>
+<script src="assets/js/api.js"></script>
+<script src="assets/js/charts.js"></script>
+<script src="assets/js/components.js"></script>
+<script src="assets/js/main.js"></script>
+
+<script>
+    function switchTab(tab) {
+        // Ocultar todas as abas
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.tab-button').forEach(el => el.classList.remove('active'));
+        
+        // Mostrar aba selecionada
+        document.getElementById('tab-' + tab).classList.add('active');
+        event.target.closest('button').classList.add('active');
+    }
+</script>
+</body>
+</body>
+</html>
