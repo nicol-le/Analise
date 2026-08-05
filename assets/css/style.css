@@ -250,3 +250,38 @@
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
 }
+
+/* ===== AUTOCOMPLETE SUGGESTIONS ===== */
+#produtoSuggestions {
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+    animation: slideDown 0.2s ease-out;
+    z-index: 9999 !important;
+}
+
+#produtoSuggestions.hidden {
+    display: none !important;
+}
+
+#produtoSuggestions > div:hover {
+    background-color: #f8fafc;
+}
+
+#produtoSuggestions > div:first-child {
+    border-radius: 8px 8px 0 0;
+}
+
+#produtoSuggestions > div:last-child {
+    border-radius: 0 0 8px 8px;
+    border-bottom: none;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}

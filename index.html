@@ -49,7 +49,7 @@
             border-radius: 12px !important;
             box-shadow: 0 8px 24px rgba(0,0,0,0.12) !important;
             border: 1px solid #e2e8f0;
-         s   padding: 0 !important;
+            padding: 0 !important;
         }
         .leaflet-popup-content {
             margin: 0 !important;
@@ -220,10 +220,10 @@
     
     <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div class="space-y-1">
+            <div class="space-y-1 relative">
                 <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Produto</label>
-                <input list="listProd" id="prodInp" onchange="loadVariedades()" class="w-full rounded-lg border-slate-200 text-sm focus:ring-primary" placeholder="Buscar produto...">
-                <datalist id="listProd"></datalist>
+                <input type="text" id="prodInp" oninput="onProdutoInput()" onfocus="onProdutoFocus()" onblur="onProdutoBlur()" class="w-full rounded-lg border-slate-200 text-sm focus:ring-primary" placeholder="Digite o nome da cultura..." autocomplete="off">
+                <div id="produtoSuggestions" class="hidden absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-y-auto"></div>
             </div>
             <div class="space-y-1">
                 <label class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Variedade</label>
@@ -328,8 +328,8 @@
                 <h3 class="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2 text-primary">
                     <span class="material-symbols-outlined">smart_toy</span> Consultor Virtual
                 </h3>
-                <div class="flex-1 bg-surface p-4 rounded-xl border border-slate-100 text-sm text-slate-700 leading-relaxed overflow-y-auto" style="max-height: 250px;">
-                    <p id="bot-explicacao" class="italic text-slate-500">Olá! Eu sou o seu consultor. Execute uma análise para que eu possa avaliar as temperaturas recentes e lhe explicar como isso deve afetar os preços dessa semana!</p>
+                <div class="flex-1 bg-surface p-5 rounded-xl border border-slate-100 text-base text-slate-700 leading-relaxed overflow-y-auto" style="max-height: 420px;">
+                    <p id="bot-explicacao" class="text-slate-500">Olá! Eu sou o seu consultor virtual. Execute uma análise para que eu possa avaliar as temperaturas recentes, correlações climáticas e lhe explicar como isso deve afetar os preços dessa semana!</p>
                 </div>
             </div>
         </section>
@@ -403,7 +403,7 @@
         </section>
     </div>
 
-    <!-- ========== ABA TÉCNICA (Simplificada) ========== -->
+    <!-- ========== ABA TÉCNICA ========== -->
     <div id="tab-analise" class="tab-content space-y-6">
         
         <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm mb-6">
@@ -413,6 +413,34 @@
             <p class="text-xs text-slate-600">Esta aba avalia os impactos diretos do clima (média das principais cidades produtoras) no preço do produto avaliado. Cada grupo de cultura (ex: Frutas, Hortaliças) possui um "lag" (atraso) diferente para refletir as altas temperaturas no preço.</p>
         </div>
 
+        <!-- Cards de Estatísticas Descritivas -->
+        <section class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-center">
+                <p class="text-[9px] font-bold text-slate-400 uppercase">Média</p>
+                <p class="text-lg font-mono font-bold text-primary mt-1" id="stat-media">—</p>
+            </div>
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-center">
+                <p class="text-[9px] font-bold text-slate-400 uppercase">Mediana</p>
+                <p class="text-lg font-mono font-bold text-slate-700 mt-1" id="stat-mediana">—</p>
+            </div>
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-center">
+                <p class="text-[9px] font-bold text-slate-400 uppercase">Desvio Padrão</p>
+                <p class="text-lg font-mono font-bold text-slate-700 mt-1" id="stat-std">—</p>
+            </div>
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-center">
+                <p class="text-[9px] font-bold text-slate-400 uppercase">CV (%)</p>
+                <p class="text-lg font-mono font-bold text-slate-700 mt-1" id="stat-cv">—</p>
+            </div>
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-center">
+                <p class="text-[9px] font-bold text-slate-400 uppercase">Mínimo</p>
+                <p class="text-lg font-mono font-bold text-green-600 mt-1" id="stat-min">—</p>
+            </div>
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm text-center">
+                <p class="text-[9px] font-bold text-slate-400 uppercase">Máximo</p>
+                <p class="text-lg font-mono font-bold text-red-600 mt-1" id="stat-max">—</p>
+            </div>
+        </section>
+
         <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                 <h3 class="text-sm font-bold text-slate-800 mb-6 flex items-center gap-2">
@@ -420,15 +448,135 @@
                 </h3>
                 <div class="chart-container"><canvas id="chTemp"></canvas></div>
                 <p class="text-xs text-slate-500 mt-3 text-center" id="statTemp">Temperaturas médias diárias nas principais regiões produtoras.</p>
+                <p class="text-[10px] text-slate-400 mt-2 border-t border-slate-100 pt-2"><strong>Interpretação:</strong> O eixo X mostra as datas e o eixo Y a temperatura em °C. Picos indicam calor intenso nas regiões produtoras — que pode afetar a oferta e o preço semanas depois.</p>
             </div>
-            
+
             <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                 <h3 class="text-sm font-bold text-slate-800 mb-6 flex items-center gap-2">
-                    <span class="material-symbols-outlined text-primary">trending_up</span> Impacto de Eventos Climáticos (Lag)
-                    </h3>
-                <div class="chart-container"><canvas id="chLag"></canvas></div>
-                <p class="text-xs text-slate-500 mt-3 text-center" id="statLag">Demonstra a variação do preço após eventos de temperatura anômala (picos).</p>
+                    <span class="material-symbols-outlined text-primary">calendar_view_week</span> Preço Médio por Dia da Semana
+                </h3>
+                <div class="chart-container"><canvas id="chDiaSemana"></canvas></div>
+                <p class="text-xs text-slate-500 mt-3 text-center" id="statDiaSemana">Preço médio por dia da semana.</p>
+                <p class="text-[10px] text-slate-400 mt-2 border-t border-slate-100 pt-2"><strong>Interpretação:</strong> O eixo X mostra os dias da semana e o eixo Y o preço médio em R$. Ajuda a identificar os melhores dias para comprar (preço baixo) ou vender (preço alto).</p>
             </div>
+        </section>
+
+        <!-- NOVAS ANÁLISES ESTATÍSTICAS -->
+        
+        <!-- Evolução de Preços com Médias Móveis -->
+        <section class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+            <h3 class="text-sm font-bold text-slate-800 mb-6 flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary">show_chart</span> Evolução de Preços com Médias Móveis (7 e 30 dias)
+            </h3>
+            <div class="chart-container" style="height: 360px;"><canvas id="chEvolucao"></canvas></div>
+            <p class="text-xs text-slate-500 mt-3 text-center" id="statEvolucao">Série histórica de preços no período selecionado.</p>
+            <p class="text-[10px] text-slate-400 mt-2 border-t border-slate-100 pt-2"><strong>Interpretação:</strong> O eixo X mostra as datas e o eixo Y o preço em R$. A linha vermelha é o preço diário, a azul é a média móvel de 7 dias (semana) e a verde a de 30 dias (mês). As médias móveis suavizam as oscilações e revelam a tendência real: se a média de 30 dias está subindo, o preço está em alta sustentada.</p>
+        </section>
+
+        <!-- Variação Diária e Índice Cumulativo -->
+        <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <h3 class="text-sm font-bold text-slate-800 mb-6 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-primary">swap_vert</span> Variação Diária de Preço (%)
+                </h3>
+                <div class="chart-container"><canvas id="chVariacaoDiaria"></canvas></div>
+                <p class="text-xs text-slate-500 mt-3 text-center" id="statVariacaoDiaria">Varação percentual dia-a-dia.</p>
+                <p class="text-[10px] text-slate-400 mt-2 border-t border-slate-100 pt-2"><strong>Interpretação:</strong> O eixo X mostra as datas e o eixo Y a variação percentual. Barras vermelhas indicam aumento de preço, verdes indicam queda. Picos extremos podem estar ligados a eventos climáticos ou de oferta.</p>
+            </div>
+            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <h3 class="text-sm font-bold text-slate-800 mb-6 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-primary">trending_up</span> Índice Cumulativo de Preço (Base 100)
+                </h3>
+                <div class="chart-container"><canvas id="chIndiceCumulativo"></canvas></div>
+                <p class="text-xs text-slate-500 mt-3 text-center" id="statIndiceCumulativo">Evolução acumulada do preço.</p>
+                <p class="text-[10px] text-slate-400 mt-2 border-t border-slate-100 pt-2"><strong>Interpretação:</strong> O eixo X mostra as datas e o eixo Y o índice (base 100 no início). Valores acima de 100 indicam que o preço subiu acumuladamente; abaixo de 100, que caiu. A linha pontilhada marca o ponto de referência (100).</p>
+            </div>
+        </section>
+
+        <!-- Sazonalidade e Estatísticas Mensais -->
+        <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <h3 class="text-sm font-bold text-slate-800 mb-6 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-primary">calendar_month</span> Sazonalidade de Preços (Média Mensal)
+                </h3>
+                <div class="chart-container"><canvas id="chSazonal"></canvas></div>
+                <p class="text-xs text-slate-500 mt-3 text-center" id="statSazonal">Preço médio por mês.</p>
+                <p class="text-[10px] text-slate-400 mt-2 border-t border-slate-100 pt-2"><strong>Interpretação:</strong> O eixo X mostra os meses e o eixo Y o preço médio em R$. Barras altas indicam meses historicamente caros; barras baixas, meses baratos. Use esta informação para planejar a época de venda.</p>
+            </div>
+            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <h3 class="text-sm font-bold text-slate-800 mb-6 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-primary">leaderboard</span> Estatísticas Mensais (Mín / Med / Máx)
+                </h3>
+                <div class="chart-container"><canvas id="chStatsMensais"></canvas></div>
+                <p class="text-xs text-slate-500 mt-3 text-center" id="statStatsMensais">Preço mínimo, mediano e máximo por mês.</p>
+                <p class="text-[10px] text-slate-400 mt-2 border-t border-slate-100 pt-2"><strong>Interpretação:</strong> O eixo X mostra os meses e o eixo Y o preço em R$. As três barras mostram o preço mínimo (verde), mediano (cinza) e máximo (vermelho) de cada mês. A diferença entre min e max indica a amplitude de variação — meses com grande amplitude são mais arriscados.</p>
+            </div>
+        </section>
+
+        <!-- Dispersão Clima × Preço -->
+        <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <h3 class="text-sm font-bold text-slate-800 mb-6 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-primary">scatter_plot</span> Dispersão: Temperatura × Preço
+                </h3>
+                <div class="chart-container"><canvas id="chScatterTemp"></canvas></div>
+                <p class="text-xs text-slate-500 mt-3 text-center" id="statScatterTemp">Cada ponto = um dia com preço e temperatura cruzados.</p>
+                <p class="text-[10px] text-slate-400 mt-2 border-t border-slate-100 pt-2"><strong>Interpretação:</strong> O eixo X mostra a temperatura em °C e o eixo Y o preço em R$. A linha tracejada é a regressão linear. Se a linha sobe da esquerda para a direita, temperaturas mais altas coincidem com preços mais altos (correlação positiva); se desce, o oposto.</p>
+            </div>
+            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <h3 class="text-sm font-bold text-slate-800 mb-6 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-primary">water_drop</span> Dispersão: Chuva × Preço
+                </h3>
+                <div class="chart-container"><canvas id="chScatterChuva"></canvas></div>
+                <p class="text-xs text-slate-500 mt-3 text-center" id="statScatterChuva">Relação entre precipitação e preço.</p>
+                <p class="text-[10px] text-slate-400 mt-2 border-t border-slate-100 pt-2"><strong>Interpretação:</strong> O eixo X mostra a precipitação em mm e o eixo Y o preço em R$. A linha tracejada é a regressão linear. Chuvas extremas podem prejudicar colheita e logística, elevando preços — observe se pontos de alta chuva coincidem com preços altos.</p>
+            </div>
+        </section>
+
+        <!-- Histograma e Volatilidade -->
+        <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <h3 class="text-sm font-bold text-slate-800 mb-6 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-primary">bar_chart</span> Distribuição de Preços (Histograma)
+                </h3>
+                <div class="chart-container"><canvas id="chHistograma"></canvas></div>
+                <p class="text-xs text-slate-500 mt-3 text-center" id="statHistograma">Frequência de faixas de preço.</p>
+                <p class="text-[10px] text-slate-400 mt-2 border-t border-slate-100 pt-2"><strong>Interpretação:</strong> O eixo X mostra faixas de preço em R$ e o eixo Y a frequência (quantos dias o preço esteve naquela faixa). A barra mais alta indica o preço mais comum. Distribuições largas indicam alta volatilidade; distribuições concentradas indicam preços estáveis.</p>
+            </div>
+            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <h3 class="text-sm font-bold text-slate-800 mb-6 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-primary">ssid_chart</span> Volatilidade Móvel (Janela 30 dias)
+                </h3>
+                <div class="chart-container"><canvas id="chVolatilidade"></canvas></div>
+                <p class="text-xs text-slate-500 mt-3 text-center" id="statVolatilidade">Desvio padrão móvel — instabilidade do preço.</p>
+                <p class="text-[10px] text-slate-400 mt-2 border-t border-slate-100 pt-2"><strong>Interpretação:</strong> O eixo X mostra as datas e o eixo Y o desvio padrão em R$. Picos indicam períodos de alta instabilidade (preços variando muito). Períodos baixos e planos indicam mercado estável. Compare com o gráfico de eventos extremos para ver se a volatilidade coincide com eventos climáticos.</p>
+            </div>
+        </section>
+
+        <!-- Eventos Extremos -->
+        <section class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+            <h3 class="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary">flash_on</span> Eventos Climáticos Extremos × Variação de Preço
+            </h3>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse text-xs">
+                    <thead class="bg-slate-50 text-slate-500">
+                        <tr>
+                            <th class="p-3">Data</th>
+                            <th class="p-3">Tipo de Evento</th>
+                            <th class="p-3 text-right">Valor</th>
+                            <th class="p-3 text-right">Preço Base</th>
+                            <th class="p-3 text-right">Var. 7d</th>
+                            <th class="p-3 text-right">Var. 14d</th>
+                            <th class="p-3 text-right">Var. 30d</th>
+                        </tr>
+                    </thead>
+                    <tbody id="extremeEventsTable" class="divide-y divide-slate-100">
+                        <tr><td colspan="7" class="p-4 text-center text-slate-400">Execute a análise para detectar eventos extremos.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <p class="text-[10px] text-slate-400 mt-3">Um evento é classificado como "extremo" quando o valor climático ultrapassa ±2 desvios-padrão da média do período. A variação de preço mostra o quanto o preço mudou após o evento em relação à média das 2 semanas anteriores.</p>
         </section>
 
     </div>

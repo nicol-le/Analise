@@ -196,6 +196,7 @@ const Api = {
                 const parsed = JSON.parse(cached);
                 if (Array.isArray(parsed) && parsed.length > 20) {
                     this._produtosCache = parsed;
+                    console.log(`📦 ${parsed.length} produtos carregados do cache`);
                     // Atualiza em background
                     this._refreshProdutosBackground();
                     return parsed;
@@ -204,6 +205,7 @@ const Api = {
         } catch (_) {}
 
         try {
+            console.log('🔍 Buscando produtos do Supabase...');
             // 4 páginas em paralelo cobrem bem a variedade de produtos (amostra ampla)
             const ranges = await Promise.all([
                 _sb.from('ceagesp').select('produto').range(0, 999),
@@ -217,6 +219,7 @@ const Api = {
                 (r.data || []).forEach(i => { if (i.produto) set.add(i.produto); });
             }
             this._produtosCache = [...set].sort();
+            console.log(`✅ ${this._produtosCache.length} produtos carregados do Supabase`);
             try { localStorage.setItem('ceagesp:produtos', JSON.stringify(this._produtosCache)); } catch (_) {}
             this._refreshProdutosBackground();
             return this._produtosCache;

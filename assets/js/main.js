@@ -195,23 +195,56 @@ function getConfidenceLevel(score) {
 
 
 window.onload = async () => {
-    document.getElementById('status-label').innerText = "CARREGANDO...";
-    
-    const [produtos, toneladas] = await Promise.all([
-        Api.fetchProdutos(),
-        Api.fetchToneladas()
-    ]);
+    try {
+        document.getElementById('status-label').innerText = "CARREGANDO...";
 
-    appState.rawToneladas = toneladas;
-    
-    const list = document.getElementById('listProd');
-    produtos.forEach(p => {
-        let o = document.createElement('option');
-        o.value = p;
-        list.appendChild(o);
-    });
+        // Buscar produtos e toneladas de forma independente (uma não bloqueia a outra)
+        let produtos = [];
+        let toneladas = [];
 
-    document.getElementById('status-label').innerText = "SISTEMA ONLINE";
+        try {
+            produtos = await Api.fetchProdutos();
+            appState._produtosCache = produtos; // Salva no cache para o autocomplete
+            console.log(`✅ ${produtos.length} produtos carregados`);
+        } catch (err) {
+            console.error('Erro ao buscar produtos:', err);
+        }
+
+        try {
+            toneladas = await Api.fetchToneladas();
+            console.log(`✅ ${toneladas.length} registros de toneladas carregados`);
+        } catch (err) {
+            console.error('Erro ao buscar toneladas:', err);
+        }
+
+        appState.rawToneladas = toneladas;
+
+        const list = document.getElementById('listProd');
+        if (list && produtos.length) {
+            produtos.forEach(p => {
+                let o = document.createElement('option');
+                o.value = p;
+                list.appendChild(o);
+            });
+            console.log(`✅ Datalist preenchido com ${produtos.length} opções`);
+        } else {
+            console.warn('⚠️ Nenhum produto para preencher o datalist ou elemento não encontrado');
+        }
+
+        // Verifica se o elemento de sugestões existe
+        const suggestionsDiv = document.getElementById('produtoSuggestions');
+        if (!suggestionsDiv) {
+            console.error('❌ Elemento produtoSuggestions não encontrado no DOM');
+        } else {
+            console.log('✅ Elemento produtoSuggestions encontrado');
+        }
+
+        document.getElementById('status-label').innerText = "SISTEMA ONLINE";
+    } catch (err) {
+        console.error('Erro no window.onload:', err);
+        const el = document.getElementById('status-label');
+        if (el) el.innerText = "ERRO AO CARREGAR";
+    }
 };
 
 async function loadVariedades() {
@@ -224,6 +257,99 @@ async function loadVariedades() {
         o.value = v;
         list.appendChild(o);
     });
+}
+
+// ===== AUTOCOMPLETE DE PRODUTOS =====
+let produtoSuggestionsTimeout = null;
+
+function onProdutoInput() {
+    const input = document.getElementById('prodInp');
+    const suggestionsDiv = document.getElementById('produtoSuggestions');
+    const value = input.value.trim();
+    
+    // Limpa timeout anterior
+    if (produtoSuggestionsTimeout) clearTimeout(produtoSuggestionsTimeout);
+    
+    // Se o campo estiver vazio, esconde sugestões
+    if (!value) {
+        suggestionsDiv.classList.add('hidden');
+        suggestionsDiv.innerHTML = '';
+        return;
+    }
+    
+    // Debounce de 300ms para não buscar a cada tecla
+    produtoSuggestionsTimeout = setTimeout(() => {
+        showProdutoSuggestions(value);
+    }, 300);
+}
+
+function onProdutoFocus() {
+    const input = document.getElementById('prodInp');
+    const suggestionsDiv = document.getElementById('produtoSuggestions');
+    const value = input.value.trim();
+    const produtos = appState._produtosCache || [];
+    
+    // Se já houver texto, mostra sugestões
+    if (value) {
+        showProdutoSuggestions(value);
+    } else if (produtos.length > 0) {
+        // Se não houver texto mas já carregou produtos, mostra os primeiros
+        showProdutoSuggestions('');
+    }
+}
+
+function onProdutoBlur() {
+    // Pequeno delay para permitir clique na sugestão
+    setTimeout(() => {
+        const suggestionsDiv = document.getElementById('produtoSuggestions');
+        if (suggestionsDiv) suggestionsDiv.classList.add('hidden');
+    }, 200);
+}
+
+function showProdutoSuggestions(filter) {
+    const suggestionsDiv = document.getElementById('produtoSuggestions');
+    if (!suggestionsDiv) return;
+    
+    const produtos = appState._produtosCache || [];
+    
+    if (!produtos.length) {
+        suggestionsDiv.classList.add('hidden');
+        return;
+    }
+    
+    // Filtra produtos baseado no texto digitado
+    let filtered = produtos;
+    if (filter) {
+        const filterUpper = filter.toUpperCase();
+        filtered = produtos.filter(p => p.toUpperCase().includes(filterUpper));
+    }
+    
+    // Limita a 15 sugestões para não sobrecarregar
+    filtered = filtered.slice(0, 15);
+    
+    if (filtered.length === 0) {
+        suggestionsDiv.classList.add('hidden');
+        return;
+    }
+    
+    // Renderiza sugestões
+    suggestionsDiv.innerHTML = filtered.map(prod => {
+        const highlight = filter ? prod.replace(new RegExp(`(${filter.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'), '<strong class="text-primary">$1</strong>') : prod;
+        return `<div class="px-4 py-2 hover:bg-slate-50 cursor-pointer text-sm text-slate-700 border-b border-slate-100 last:border-b-0 transition-colors" onmousedown="selectProduto('${prod.replace(/'/g, "\\'")}')">${highlight}</div>`;
+    }).join('');
+    
+    suggestionsDiv.classList.remove('hidden');
+}
+
+function selectProduto(produto) {
+    const input = document.getElementById('prodInp');
+    const suggestionsDiv = document.getElementById('produtoSuggestions');
+    
+    if (input) input.value = produto;
+    if (suggestionsDiv) suggestionsDiv.classList.add('hidden');
+    
+    // Carrega variedades automaticamente
+    loadVariedades();
 }
 
 function changeGranularity(g, btn) {
@@ -461,17 +587,193 @@ function renderDashboard() {
     console.log("Matches de datas encontrados com clima:", historicos.filter(h => mapaClima[h.date]).length);
     console.groupEnd();
 
-    let correlacoes = [];
-    
-    let ptsTemp = [];
-    historicos.forEach(p => {
-        if (mapaClima[p.date] && mapaClima[p.date].temp !== 0)
-            ptsTemp.push({ x: mapaClima[p.date].temp, y: p.val });
-    });
-    const pearsonTemp = Utils.getPearson(ptsTemp);
-    if (ptsTemp.length > 1) correlacoes.push({ nome: 'Temperatura', r: pearsonTemp, pontos: ptsTemp.length });
+    // ===== Estatísticas Descritivas de Preço =====
+    const precosArr = historicos.map(h => h.val);
+    const media = Utils.average(precosArr);
+    const std = Utils.stdDev(precosArr);
+    const sortedPrecos = [...precosArr].sort((a, b) => a - b);
+    const mediana = sortedPrecos.length % 2 === 0
+        ? (sortedPrecos[sortedPrecos.length / 2 - 1] + sortedPrecos[sortedPrecos.length / 2]) / 2
+        : sortedPrecos[Math.floor(sortedPrecos.length / 2)];
+    const minPreco = sortedPrecos[0] || 0;
+    const maxPreco = sortedPrecos[sortedPrecos.length - 1] || 0;
 
-    // Evolução das Temperaturas
+    const setStat = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    setStat('stat-media', Utils.formatCurrency(media));
+    setStat('stat-mediana', Utils.formatCurrency(mediana));
+    setStat('stat-std', 'R$ ' + std.toFixed(2));
+    setStat('stat-cv', cv.toFixed(1) + '%');
+    setStat('stat-min', Utils.formatCurrency(minPreco));
+    setStat('stat-max', Utils.formatCurrency(maxPreco));
+
+    // ===== Pontos para dispersão (mantém para scatter e bot) =====
+    let ptsTemp = [], ptsChuva = [];
+    historicos.forEach(p => {
+        const c = mapaClima[p.date];
+        if (!c) return;
+        if (c.temp !== 0) ptsTemp.push({ x: c.temp, y: p.val });
+        if (c.chuva !== 0) ptsChuva.push({ x: c.chuva, y: p.val });
+    });
+
+    // ===== Gráficos de Dispersão =====
+    if (typeof Charts.updateScatter === 'function') {
+        Charts.updateScatter('chScatterTemp', ptsTemp, 'Temperatura (°C)');
+        Charts.updateScatter('chScatterChuva', ptsChuva, 'Precipitação (mm)');
+    }
+    const sstEl = document.getElementById('statScatterTemp');
+    if (sstEl) sstEl.textContent = ptsTemp.length > 1
+        ? `r = ${Utils.getPearson(ptsTemp).toFixed(3)} · ${ptsTemp.length} pontos cruzados`
+        : 'Dados insuficientes para dispersão.';
+    const sscEl = document.getElementById('statScatterChuva');
+    if (sscEl) sscEl.textContent = ptsChuva.length > 1
+        ? `r = ${Utils.getPearson(ptsChuva).toFixed(3)} · ${ptsChuva.length} pontos cruzados`
+        : 'Dados insuficientes para dispersão.';
+
+    // ===== Preço Médio por Dia da Semana =====
+    const diasSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+    const diaSemanaData = diasSemana.map((_, i) => {
+        const m = historicos.filter(p => new Date(p.date + 'T00:00:00').getDay() === i);
+        return m.length ? Utils.average(m.map(p => p.val)) : 0;
+    });
+    if (typeof Charts.updateBarChart === 'function') {
+        Charts.updateBarChart('chDiaSemana', diasSemana, diaSemanaData, 'Dia da Semana', 'Preço Médio (R$)');
+    }
+    const diaMaisBarato = diasSemana[diaSemanaData.indexOf(Math.min(...diaSemanaData.filter(v => v > 0)))];
+    const diaMaisCaro = diasSemana[diaSemanaData.indexOf(Math.max(...diaSemanaData))];
+    const statDiaEl = document.getElementById('statDiaSemana');
+    if (statDiaEl) statDiaEl.textContent = diaSemanaData.some(v => v > 0)
+        ? `Mais barato: ${diaMaisBarato} · Mais caro: ${diaMaisCaro}`
+        : 'Sem dados suficientes.';
+
+    // ===== Evolução de Preços com Médias Móveis (7 e 30 dias) =====
+    const evoLabels = historicos.map(h => h.date);
+    const evoPrices = historicos.map(h => h.val);
+    // Média móvel 7 dias
+    const ma7 = evoPrices.map((_, i) => {
+        const start = Math.max(0, i - 6);
+        return Utils.average(evoPrices.slice(start, i + 1));
+    });
+    // Média móvel 30 dias
+    const ma30 = evoPrices.map((_, i) => {
+        const start = Math.max(0, i - 29);
+        return Utils.average(evoPrices.slice(start, i + 1));
+    });
+    if (typeof Charts.updateMultiLineChart === 'function') {
+        Charts.updateMultiLineChart('chEvolucao', evoLabels, [
+            { label: 'Preço Diário', data: evoPrices, borderColor: '#8B0000', backgroundColor: 'rgba(139,0,0,0.03)', fill: false, tension: 0.3, pointRadius: 0, borderWidth: 1 },
+            { label: 'Média Móvel 7 dias', data: ma7, borderColor: '#3b82f6', fill: false, tension: 0.3, pointRadius: 0, borderWidth: 2 },
+            { label: 'Média Móvel 30 dias', data: ma30, borderColor: '#10b981', fill: false, tension: 0.3, pointRadius: 0, borderWidth: 2 }
+        ], 'Data', 'Preço (R$)');
+    }
+    const statEvolEl = document.getElementById('statEvolucao');
+    if (statEvolEl) statEvolEl.textContent = `${evoPrices.length} registros · tendência: ${ma30[ma30.length-1] > ma30[0] ? 'alta' : 'baixa'}.`;
+
+    // ===== Variação Diária de Preço (%) =====
+    const varLabels = [];
+    const varData = [];
+    for (let i = 1; i < evoPrices.length; i++) {
+        const prev = evoPrices[i - 1];
+        const curr = evoPrices[i];
+        const pct = prev ? ((curr - prev) / prev) * 100 : 0;
+        varLabels.push(evoLabels[i]);
+        varData.push(pct);
+    }
+    if (typeof Charts.updatePriceChangeChart === 'function') {
+        Charts.updatePriceChangeChart('chVariacaoDiaria', varLabels, varData, 'Data', 'Variação (%)');
+    }
+    const statVarEl = document.getElementById('statVariacaoDiaria');
+    if (statVarEl) statVarEl.textContent = varData.length
+        ? `Média: ${Utils.average(varData).toFixed(2)}% · Maior alta: +${Math.max(...varData).toFixed(1)}% · Maior queda: ${Math.min(...varData).toFixed(1)}%`
+        : 'Dados insuficientes.';
+
+    // ===== Índice Cumulativo de Preço (Base 100) =====
+    const indiceData = evoPrices.map(v => (v / evoPrices[0]) * 100);
+    if (typeof Charts.updateCumulativeChart === 'function') {
+        Charts.updateCumulativeChart('chIndiceCumulativo', evoLabels, indiceData, 'Data', 'Índice (Base 100)');
+    }
+    const statIndEl = document.getElementById('statIndiceCumulativo');
+    if (statIndEl) statIndEl.textContent = `Início: 100 · Atual: ${indiceData[indiceData.length-1].toFixed(1)} · Variação acumulada: ${(indiceData[indiceData.length-1] - 100).toFixed(1)}%`;
+
+    // ===== Sazonalidade Mensal =====
+    const mesesLabels = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+    const sazonalData = mesesLabels.map((_, i) => {
+        let m = historicos.filter(p => new Date(p.date + 'T00:00:00').getUTCMonth() === i);
+        return m.length ? Utils.average(m.map(p => p.val)) : 0;
+    });
+    if (typeof Charts.updateBarChart === 'function') {
+        Charts.updateBarChart('chSazonal', mesesLabels, sazonalData, 'Mês', 'Preço Médio (R$)');
+    }
+    const mesMaisBarato = mesesLabels[sazonalData.indexOf(Math.min(...sazonalData.filter(v => v > 0)))];
+    const mesMaisCaro = mesesLabels[sazonalData.indexOf(Math.max(...sazonalData))];
+    const statSazEl = document.getElementById('statSazonal');
+    if (statSazEl) statSazEl.textContent = sazonalData.some(v => v > 0)
+        ? `Mês mais barato: ${mesMaisBarato} · Mês mais caro: ${mesMaisCaro}`
+        : 'Sem dados suficientes para sazonalidade.';
+
+    // ===== Estatísticas Mensais (Mín / Med / Máx) =====
+    const minMensal = mesesLabels.map((_, i) => {
+        const m = historicos.filter(p => new Date(p.date + 'T00:00:00').getUTCMonth() === i).map(p => p.val);
+        return m.length ? Math.min(...m) : 0;
+    });
+    const medMensal = mesesLabels.map((_, i) => {
+        const m = historicos.filter(p => new Date(p.date + 'T00:00:00').getUTCMonth() === i).map(p => p.val);
+        if (!m.length) return 0;
+        const sorted = [...m].sort((a, b) => a - b);
+        return sorted.length % 2 === 0 ? (sorted[sorted.length/2-1] + sorted[sorted.length/2]) / 2 : sorted[Math.floor(sorted.length/2)];
+    });
+    const maxMensal = mesesLabels.map((_, i) => {
+        const m = historicos.filter(p => new Date(p.date + 'T00:00:00').getUTCMonth() === i).map(p => p.val);
+        return m.length ? Math.max(...m) : 0;
+    });
+    if (typeof Charts.updateMonthlyStatsChart === 'function') {
+        Charts.updateMonthlyStatsChart('chStatsMensais', mesesLabels, minMensal, medMensal, maxMensal, 'Mês', 'Preço (R$)');
+    }
+    const statSMEl = document.getElementById('statStatsMensais');
+    if (statSMEl) statSMEl.textContent = sazonalData.some(v => v > 0)
+        ? `Maior amplitude: ${mesesLabels.find((_, i) => maxMensal[i] - minMensal[i] === Math.max(...maxMensal.map((mx, i) => mx - minMensal[i])))}`
+        : 'Sem dados suficientes.';
+
+    // ===== Histograma de Preços =====
+    const numBins = Math.min(15, Math.max(5, Math.ceil(Math.sqrt(precosArr.length))));
+    const histMin = minPreco;
+    const histMax = maxPreco;
+    const binSize = (histMax - histMin) / numBins || 1;
+    const histLabels = [];
+    const histData = new Array(numBins).fill(0);
+    for (let i = 0; i < numBins; i++) {
+        const lo = histMin + i * binSize;
+        histLabels.push(`R$ ${lo.toFixed(0)}–${(lo + binSize).toFixed(0)}`);
+    }
+    precosArr.forEach(v => {
+        let idx = Math.floor((v - histMin) / binSize);
+        if (idx >= numBins) idx = numBins - 1;
+        if (idx < 0) idx = 0;
+        histData[idx]++;
+    });
+    if (typeof Charts.updateBarChart === 'function') {
+        Charts.updateBarChart('chHistograma', histLabels, histData, 'Faixa de Preço (R$)', 'Frequência (dias)');
+    }
+    const statHistEl = document.getElementById('statHistograma');
+    if (statHistEl) statHistEl.textContent = `${precosArr.length} preços distribuídos em ${numBins} faixas.`;
+
+    // ===== Volatilidade Móvel (janela 30 dias) =====
+    const windowSize = 30;
+    const volLabels = [];
+    const volData = [];
+    for (let i = windowSize - 1; i < precosArr.length; i++) {
+        const slice = precosArr.slice(i - windowSize + 1, i + 1);
+        volLabels.push(historicos[i].date);
+        volData.push(Utils.stdDev(slice));
+    }
+    if (typeof Charts.updateLineChart === 'function') {
+        Charts.updateLineChart('chVolatilidade', volLabels, volData, 'Desvio Padrão (R$)', 'Data', 'Desvio Padrão (R$)');
+    }
+    const statVolEl = document.getElementById('statVolatilidade');
+    if (statVolEl) statVolEl.textContent = volData.length
+        ? `Volatilidade média: R$ ${Utils.average(volData).toFixed(2)} · pico: R$ ${Math.max(...volData).toFixed(2)}`
+        : 'Dados insuficientes (mínimo 30 registros).';
+
+    // ===== Evolução das Temperaturas =====
     let tempLabels = [];
     let tempVals = [];
     Object.keys(mapaClima).sort().forEach(d => {
@@ -480,16 +782,13 @@ function renderDashboard() {
             tempVals.push(mapaClima[d].temp);
         }
     });
-    Charts.updateLineChart('chTemp', tempLabels, tempVals, 'Temp Média (ºC)');
-    
+    Charts.updateLineChart('chTemp', tempLabels, tempVals, 'Temp Média (ºC)', 'Data', 'Temperatura (°C)');
     document.getElementById('statTemp').innerText = `${tempLabels.length} dias de clima monitorados nas cidades produtoras.`;
 
-    // Call lag analysis chart in charts.js
-    if (typeof Charts.updateLagChart === 'function') {
-        Charts.updateLagChart(historicos, mapaClima, appState.currentProduto);
-    }
+    // ===== Eventos Extremos (lag real: mostra como o preço muda após eventos) =====
+    renderExtremeEvents(historicos, mapaClima);
 
-    // Calendário e visão do produtor
+    // ===== Calendário e visão do produtor =====
     if (typeof Producer !== 'undefined') {
         try { Producer.render(historicos, mapaClima, appState.currentProduto); } catch (err) { console.warn('Producer:', err); }
     }

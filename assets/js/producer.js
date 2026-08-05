@@ -204,33 +204,159 @@ const Producer = {
         if (['FEIJAO', 'SOJA', 'MILHO'].some(p => prodUpper.includes(p))) group = 'graos';
 
         if (botEl && mapaClima && historicos.length > 10) {
-            const recentDates = historicos.slice(-5).map(h => h.date);
-            const olderDates = historicos.slice(-10, -5).map(h => h.date);
-            
+            // ===== Coletar dados climáticos recentes vs anteriores =====
+            const recentDates = historicos.slice(-7).map(h => h.date);
+            const olderDates = historicos.slice(-14, -7).map(h => h.date);
+
             let recentTemp = 0, oldTemp = 0, rc = 0, oc = 0;
-            recentDates.forEach(d => { if(mapaClima[d]) { recentTemp += mapaClima[d].temp; rc++; } });
-            olderDates.forEach(d => { if(mapaClima[d]) { oldTemp += mapaClima[d].temp; oc++; } });
-            
+            let recentChuva = 0, oldChuva = 0;
+            let recentUmidade = 0, oldUmidade = 0;
+
+            recentDates.forEach(d => {
+                if (mapaClima[d]) {
+                    recentTemp += mapaClima[d].temp; rc++;
+                    recentChuva += mapaClima[d].chuva || 0;
+                    recentUmidade += mapaClima[d].umidade || 0;
+                }
+            });
+            olderDates.forEach(d => {
+                if (mapaClima[d]) {
+                    oldTemp += mapaClima[d].temp; oc++;
+                    oldChuva += mapaClima[d].chuva || 0;
+                    oldUmidade += mapaClima[d].umidade || 0;
+                }
+            });
+
+            // ===== Tendência de preços =====
+            const recentPrices = historicos.slice(-7).map(h => h.val);
+            const olderPrices = historicos.slice(-14, -7).map(h => h.val);
+            const recentAvgPrice = Utils.average(recentPrices);
+            const olderAvgPrice = olderPrices.length ? Utils.average(olderPrices) : recentAvgPrice;
+            const priceChange = olderAvgPrice ? ((recentAvgPrice - olderAvgPrice) / olderAvgPrice) * 100 : 0;
+
+            // ===== Correlações rápidas =====
+            const ptsTemp = [], ptsChuva = [];
+            historicos.forEach(p => {
+                const c = mapaClima[p.date];
+                if (!c) return;
+                if (c.temp) ptsTemp.push({ x: c.temp, y: p.val });
+                if (c.chuva) ptsChuva.push({ x: c.chuva, y: p.val });
+            });
+            const rTemp = ptsTemp.length > 1 ? Utils.getPearson(ptsTemp) : 0;
+            const rChuva = ptsChuva.length > 1 ? Utils.getPearson(ptsChuva) : 0;
+
+            // ===== Estatísticas de preço =====
+            const allPrices = historicos.map(h => h.val);
+            const priceMean = Utils.average(allPrices);
+            const priceStd = Utils.stdDev(allPrices);
+            const priceCV = priceMean ? (priceStd / priceMean) * 100 : 0;
+            const lastPrice = historicos[historicos.length - 1].val;
+            const vsMean = priceMean ? ((lastPrice - priceMean) / priceMean) * 100 : 0;
+
             if (rc > 0 && oc > 0) {
                 recentTemp /= rc;
                 oldTemp /= oc;
-                const diff = recentTemp - oldTemp;
-                const trend = diff > 0.5 ? 'aumentou' : (diff < -0.5 ? 'caiu' : 'se manteve estável');
-                
+                recentChuva /= rc;
+                oldChuva /= oc;
+                recentUmidade /= rc;
+                oldUmidade /= oc;
+
+                const tempDiff = recentTemp - oldTemp;
+                const tempTrend = tempDiff > 0.5 ? 'aumentou' : (tempDiff < -0.5 ? 'caiu' : 'se manteve estável');
+                const chuvaDiff = recentChuva - oldChuva;
+                const chuvaTrend = chuvaDiff > 1 ? 'aumentou' : (chuvaDiff < -1 ? 'diminuiu' : 'se manteve estável');
+                const priceTrend = priceChange > 3 ? 'subindo' : (priceChange < -3 ? 'caindo' : 'estável');
+
+                // ===== Impacto por grupo de cultura =====
                 let groupImpact = '';
-                if (group === 'hortalicas') groupImpact = 'Para raízes e hortaliças, variações bruscas podem afetar o calibre e a qualidade comercial, alterando a oferta na CEAGESP e impactando os preços de 1 a 2 semanas depois.';
-                else if (group === 'frutas') groupImpact = 'Nas frutas, o calor acelera a maturação. Isso pode gerar um pico de oferta inicial (pressionando os preços para baixo), seguido de escassez caso as perdas sejam altas.';
-                else if (group === 'folhosas') groupImpact = 'Folhosas são extremamente sensíveis ao calor e chuva forte. Temperaturas elevadas podem queimar as folhas, reduzindo a oferta e causando picos rápidos de preço em poucos dias.';
-                else groupImpact = 'Mudanças de temperatura afetam o ciclo da planta e a logística até o terminal, gerando oscilações de preço.';
+                let lagInfo = '';
+                if (group === 'hortalicas') {
+                    groupImpact = 'Para raízes e hortaliças, variações bruscas de temperatura podem afetar o calibre e a qualidade comercial, alterando a oferta na CEAGESP e impactando os preços de 1 a 2 semanas depois.';
+                    lagInfo = 'O efeito climático nas hortaliças costuma aparecer com um atraso (lag) de aproximadamente 14 dias no preço atacadista.';
+                } else if (group === 'frutas') {
+                    groupImpact = 'Nas frutas, o calor acelera a maturação. Isso pode gerar um pico de oferta inicial (pressionando os preços para baixo), seguido de escassez caso as perdas sejam altas.';
+                    lagInfo = 'Frutas climatéricas respondem ao calor em 7 a 14 dias, dependendo da perecibilidade.';
+                } else if (group === 'folhosas') {
+                    groupImpact = 'Folhosas são extremamente sensíveis ao calor e chuva forte. Temperaturas elevadas podem queimar as folhas, reduzindo a oferta e causando picos rápidos de preço em poucos dias.';
+                    lagInfo = 'Folhosas têm resposta quase imediata (3 a 5 dias) a eventos climáticos extremos.';
+                } else {
+                    groupImpact = 'Mudanças de temperatura afetam o ciclo da planta e a logística até o terminal, gerando oscilações de preço.';
+                    lagInfo = 'O efeito no preço varia conforme o ciclo da cultura e a distância das regiões produtoras.';
+                }
+
+                // ===== Interpretação das correlações =====
+                let corrInterpret = '';
+                if (Math.abs(rTemp) > 0.5) {
+                    corrInterpret = rTemp > 0
+                        ? `A correlação positiva (r=${rTemp.toFixed(2)}) entre temperatura e preço sugere que dias mais quentes tendem a coincidir com preços mais altos — possivelmente por estresse térmico na produção.`
+                        : `A correlação negativa (r=${rTemp.toFixed(2)}) entre temperatura e preço indica que dias mais quentes tendem a ter preços mais baixos — possivelmente por maior oferta em períodos de safra quente.`;
+                } else if (ptsTemp.length > 1) {
+                    corrInterpret = `A correlação entre temperatura e preço é fraca (r=${rTemp.toFixed(2)}), indicando que outros fatores (sazonalidade, oferta, demanda) têm mais peso que a temperatura isoladamente.`;
+                }
+
+                let chuvaInterpret = '';
+                if (Math.abs(rChuva) > 0.5 && ptsChuva.length > 1) {
+                    chuvaInterpret = rChuva > 0
+                        ? ` A chuva mostra correlação positiva (r=${rChuva.toFixed(2)}) com o preço — excessos hídricos podem prejudicar a colheita e o transporte, elevando preços.`
+                        : ` A chuva mostra correlação negativa (r=${rChuva.toFixed(2)}) com o preço — possivelmente por favorecer o desenvolvimento da cultura a médio prazo.`;
+                }
+
+                // ===== Recomendação final =====
+                let recomendacao = '';
+                if (vsMean > 10) {
+                    recomendacao = `O preço atual está ${vsMean.toFixed(0)}% acima da média histórica do período. É um <strong>momento favorável para vender</strong>.`;
+                } else if (vsMean < -10) {
+                    recomendacao = `O preço atual está ${Math.abs(vsMean).toFixed(0)}% abaixo da média. Se possível, <strong>aguarde uma janela mais firme</strong> — consulte o calendário acima para os melhores dias.`;
+                } else {
+                    recomendacao = `O preço atual está próximo da média histórica (${vsMean.toFixed(0)}% de desvio). Mercado estável — acompanhe o calendário para otimizar o dia de venda.`;
+                }
+
+                // ===== Volatilidade =====
+                let volatInfo = '';
+                if (priceCV > 25) {
+                    volatInfo = ` A volatilidade está alta (CV=${priceCV.toFixed(0)}%), o que significa que os preços variam bastante — tanto para cima quanto para baixo. Fique atento às janelas do calendário.`;
+                } else if (priceCV < 10) {
+                    volatInfo = ` A volatilidade está baixa (CV=${priceCV.toFixed(0)}%), indicando preços mais previsíveis e estáveis.`;
+                } else {
+                    volatInfo = ` A volatilidade está moderada (CV=${priceCV.toFixed(0)}%).`;
+                }
 
                 botEl.innerHTML = `
-                    <p>Olá! Analisei os dados climáticos das principais regiões produtoras de <strong>${produto}</strong>.</p>
-                    <p class="mt-2">Notei que a temperatura média nos últimos dias foi de <strong>${recentTemp.toFixed(1)}ºC</strong>, o que significa que <strong>${trend}</strong> em relação à semana anterior.</p>
-                    <p class="mt-2">${groupImpact}</p>
-                    <p class="mt-2 text-primary font-bold">Fique de olho: acompanhe o calendário de vendas acima para escolher o melhor dia da semana para descarregar!</p>
+                    <div class="space-y-3">
+                        <p>Olá! Analisei os dados climáticos e de preço de <strong>${produto}</strong> das principais regiões produtoras.</p>
+
+                        <div class="bg-blue-50 p-3 rounded-lg border border-blue-100">
+                            <p class="font-bold text-blue-900 text-sm mb-1">🌡️ Temperatura</p>
+                            <p>Nos últimos 7 dias, a temperatura média foi de <strong>${recentTemp.toFixed(1)}°C</strong>. Isso significa que a temperatura <strong>${tempTrend}</strong> em relação à semana anterior (que estava em ${oldTemp.toFixed(1)}°C).</p>
+                        </div>
+
+                        <div class="bg-cyan-50 p-3 rounded-lg border border-cyan-100">
+                            <p class="font-bold text-cyan-900 text-sm mb-1">🌧️ Chuva e Umidade</p>
+                            <p>A precipitação média <strong>${chuvaTrend}</strong> — passou de ${oldChuva.toFixed(1)}mm para ${recentChuva.toFixed(1)}mm por dia. A umidade relativa está em ${recentUmidade.toFixed(0)}%.</p>
+                        </div>
+
+                        <div class="bg-amber-50 p-3 rounded-lg border border-amber-100">
+                            <p class="font-bold text-amber-900 text-sm mb-1">💰 Tendência de Preço</p>
+                            <p>O preço médio recente é <strong>${Utils.formatCurrency(recentAvgPrice)}</strong>, e a tendência é <strong>${priceTrend}</strong> (${priceChange > 0 ? '+' : ''}${priceChange.toFixed(1)}% vs semana anterior). O preço atual está ${vsMean > 0 ? 'acima' : 'abaixo'} da média do período em ${Math.abs(vsMean).toFixed(0)}%.</p>
+                        </div>
+
+                        <div class="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                            <p class="font-bold text-slate-800 text-sm mb-1">📊 Análise Estatística</p>
+                            <p>${groupImpact} ${lagInfo}</p>
+                            ${corrInterpret ? `<p class="mt-1">${corrInterpret}</p>` : ''}
+                            ${chuvaInterpret ? `<p class="mt-1">${chuvaInterpret}</p>` : ''}
+                            <p class="mt-1">${volatInfo}</p>
+                        </div>
+
+                        <div class="bg-primary-container/10 p-3 rounded-lg border border-red-100">
+                            <p class="font-bold text-primary text-sm mb-1">🎯 Recomendação</p>
+                            <p>${recomendacao}</p>
+                            <p class="mt-1 text-sm">Consulte o calendário de vendas acima para escolher o melhor dia da semana para descarregar sua produção!</p>
+                        </div>
+                    </div>
                 `;
             } else {
-                botEl.innerHTML = '<p>Não há dados climáticos suficientes para esta análise no período selecionado.</p>';
+                botEl.innerHTML = '<p>Não há dados climáticos suficientes para esta análise no período selecionado. Tente um produto ou período com mais registros.</p>';
             }
         }
 
