@@ -189,10 +189,10 @@ const Producer = {
         }
 
         // Consultor Virtual e Curiosidades
-        this._updateBotAndCuriosities(historicos, mapaClima, produto);
+        this._updateBotAndCuriosities(historicos, mapaClima, produto, cal.overallMean);
     },
 
-    _updateBotAndCuriosities(historicos, mapaClima, produto) {
+    _updateBotAndCuriosities(historicos, mapaClima, produto, monthlyMean) {
         const botEl = document.getElementById('bot-explicacao');
         const curiositiesEl = document.getElementById('producer-curiosities');
 
@@ -252,6 +252,10 @@ const Producer = {
             const priceCV = priceMean ? (priceStd / priceMean) * 100 : 0;
             const lastPrice = historicos[historicos.length - 1].val;
             const vsMean = priceMean ? ((lastPrice - priceMean) / priceMean) * 100 : 0;
+            
+            // Usar a média mensal (do card) para a recomendação, se disponível
+            const meanForRecommendation = monthlyMean || priceMean;
+            const vsCard = ((lastPrice - meanForRecommendation) / (meanForRecommendation || 1)) * 100;
 
             if (rc > 0 && oc > 0) {
                 recentTemp /= rc;
@@ -306,14 +310,14 @@ const Producer = {
                         : ` A chuva mostra correlação negativa (r=${rChuva.toFixed(2)}) com o preço — possivelmente por favorecer o desenvolvimento da cultura a médio prazo.`;
                 }
 
-                // ===== Recomendação final =====
+                // ===== Recomendação final (alinhada com o card "Momento de venda") =====
                 let recomendacao = '';
-                if (vsMean > 10) {
-                    recomendacao = `O preço atual está ${vsMean.toFixed(0)}% acima da média histórica do período. É um <strong>momento favorável para vender</strong>.`;
-                } else if (vsMean < -10) {
-                    recomendacao = `O preço atual está ${Math.abs(vsMean).toFixed(0)}% abaixo da média. Se possível, <strong>aguarde uma janela mais firme</strong> — consulte o calendário acima para os melhores dias.`;
+                if (vsCard >= 5) {
+                    recomendacao = `O preço atual está ${vsCard.toFixed(0)}% acima da média histórica. <strong>Momento favorável para vender</strong>.`;
+                } else if (vsCard <= -5) {
+                    recomendacao = `O preço atual está ${Math.abs(vsCard).toFixed(0)}% abaixo da média. Se possível, <strong>aguarde uma janela mais firme</strong> — consulte o calendário acima para os melhores dias.`;
                 } else {
-                    recomendacao = `O preço atual está próximo da média histórica (${vsMean.toFixed(0)}% de desvio). Mercado estável — acompanhe o calendário para otimizar o dia de venda.`;
+                    recomendacao = `O preço atual está próximo da média histórica (${vsCard.toFixed(0)}% de desvio). Mercado estável — acompanhe o calendário para otimizar o dia de venda.`;
                 }
 
                 // ===== Volatilidade =====
@@ -326,11 +330,30 @@ const Producer = {
                     volatInfo = ` A volatilidade está moderada (CV=${priceCV.toFixed(0)}%).`;
                 }
 
+                // ===== Dados das cidades produtoras =====
+                let citiesInfo = '';
+                if (appState.allProducerCities && appState.allProducerCities.length > 0) {
+                    const topCities = appState.allProducerCities.slice(0, 5);
+                    const totalVolume = appState.allProducerCities.reduce((sum, city) => sum + city.volume, 0);
+                    citiesInfo = `<div class="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                        <p class="font-bold text-slate-800 text-sm mb-1">Principais Cidades Produtoras</p>
+                        <p class="text-xs text-slate-700">Volume total mapeado: <strong>${totalVolume.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} toneladas</strong></p>
+                        <p class="text-xs text-slate-700 mt-1">Top ${Math.min(5, topCities.length)} cidades:</p>
+                        <ul class="text-xs text-slate-600 mt-1 space-y-1 list-disc pl-4">
+                            ${topCities.map((city, idx) => {
+                                const percent = totalVolume > 0 ? ((city.volume / totalVolume) * 100).toFixed(1) : 0;
+                                return `<li>${city.municipio}/${city.uf}: ${city.volume.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} t (${percent}%)</li>`;
+                            }).join('')}
+                        </ul>
+                        <p class="text-xs text-slate-600 mt-2">Essas cidades representam a principal fonte de abastecimento e suas condições climáticas influenciam diretamente a oferta e os preços na CEAGESP.</p>
+                    </div>`;
+                }
+
                 // ===== Explicação didática sobre correlação =====
                 let explicacaoDidatica = '';
                 if (Math.abs(rTemp) > 0.5 || Math.abs(rChuva) > 0.5) {
                     explicacaoDidatica = `<div class="bg-indigo-50 p-3 rounded-lg border border-indigo-100">
-                        <p class="font-bold text-indigo-900 text-sm mb-1">📚 Como funciona essa análise?</p>
+                        <p class="font-bold text-indigo-900 text-sm mb-1">Como funciona essa análise?</p>
                         <p class="text-xs text-indigo-800">O sistema compara <strong>dados climáticos das regiões produtoras</strong> com <strong>preços na CEAGESP</strong>. Quando encontramos uma relação forte (correlação acima de 0.5), significa que o clima está influenciando o preço. Isso acontece porque:</p>
                         <ul class="text-xs text-indigo-800 mt-1 space-y-1 list-disc pl-4">
                             <li>Clima extremo → afeta a produção → diminui oferta → preço sobe</li>
@@ -345,30 +368,32 @@ const Producer = {
                         <p>Olá! Eu sou o seu <strong>consultor virtual especializado em ${produto}</strong>. Analisei os dados climáticos e de preço das principais regiões produtoras para você tomar a melhor decisão. Vou explicar <strong>passo a passo</strong> o que está acontecendo:</p>
 
                         <div class="bg-blue-50 p-3 rounded-lg border border-blue-100">
-                            <p class="font-bold text-blue-900 text-sm mb-1">🌡️ Passo 1: O que o clima está fazendo?</p>
+                            <p class="font-bold text-blue-900 text-sm mb-1">Passo 1: O que o clima está fazendo?</p>
                             <p>Nos últimos 7 dias, a temperatura média nas regiões produtoras foi de <strong>${recentTemp.toFixed(1)}°C</strong>. Comparando com a semana anterior (${oldTemp.toFixed(1)}°C), a temperatura <strong>${tempTrend}</strong>.</p>
                             <p class="text-xs text-blue-800 mt-1">A precipitação média <strong>${chuvaTrend}</strong> (de ${oldChuva.toFixed(1)}mm para ${recentChuva.toFixed(1)}mm por dia) e a umidade relativa está em <strong>${recentUmidade.toFixed(0)}%</strong>.</p>
                         </div>
 
                         <div class="bg-amber-50 p-3 rounded-lg border border-amber-100">
-                            <p class="font-bold text-amber-900 text-sm mb-1">💰 Passo 2: Como isso afeta o preço?</p>
+                            <p class="font-bold text-amber-900 text-sm mb-1">Passo 2: Como isso afeta o preço?</p>
                             <p>O preço médio recente é <strong>${Utils.formatCurrency(recentAvgPrice)}</strong>, e a tendência é <strong>${priceTrend}</strong> (${priceChange > 0 ? '+' : ''}${priceChange.toFixed(1)}% vs semana anterior). O preço atual está ${vsMean > 0 ? 'acima' : 'abaixo'} da média histórica em ${Math.abs(vsMean).toFixed(0)}%.</p>
                             <p class="text-xs text-amber-800 mt-1">${groupImpact}</p>
                             <p class="text-xs text-amber-800 mt-1">${lagInfo}</p>
                             <p class="text-xs text-amber-800 mt-1">${practicalExample}</p>
                         </div>
 
+                        ${citiesInfo}
+
                         ${explicacaoDidatica}
 
                         <div class="bg-slate-50 p-3 rounded-lg border border-slate-200">
-                            <p class="font-bold text-slate-800 text-sm mb-1">📊 Passo 3: O que os números dizem?</p>
+                            <p class="font-bold text-slate-800 text-sm mb-1">Passo 3: O que os números dizem?</p>
                             ${corrInterpret ? `<p class="text-xs text-slate-700">${corrInterpret}</p>` : ''}
                             ${chuvaInterpret ? `<p class="text-xs text-slate-700">${chuvaInterpret}</p>` : ''}
                             <p class="text-xs text-slate-700 mt-1">${volatInfo}</p>
                         </div>
 
                         <div class="bg-primary-container/10 p-3 rounded-lg border border-red-100">
-                            <p class="font-bold text-primary text-sm mb-1">🎯 Passo 4: O que você deve fazer?</p>
+                            <p class="font-bold text-primary text-sm mb-1">Passo 4: O que você deve fazer?</p>
                             <p>${recomendacao}</p>
                             <p class="mt-1 text-sm">Consulte o <strong>calendário de vendas acima</strong> para escolher o melhor dia da semana para descarregar sua produção!</p>
                         </div>
