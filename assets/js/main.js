@@ -668,32 +668,6 @@ function renderDashboard() {
     const statEvolEl = document.getElementById('statEvolucao');
     if (statEvolEl) statEvolEl.textContent = `${evoPrices.length} registros · tendência: ${ma30[ma30.length-1] > ma30[0] ? 'alta' : 'baixa'}.`;
 
-    // ===== Variação Diária de Preço (%) =====
-    const varLabels = [];
-    const varData = [];
-    for (let i = 1; i < evoPrices.length; i++) {
-        const prev = evoPrices[i - 1];
-        const curr = evoPrices[i];
-        const pct = prev ? ((curr - prev) / prev) * 100 : 0;
-        varLabels.push(evoLabels[i]);
-        varData.push(pct);
-    }
-    if (typeof Charts.updatePriceChangeChart === 'function') {
-        Charts.updatePriceChangeChart('chVariacaoDiaria', varLabels, varData, 'Data', 'Variação (%)');
-    }
-    const statVarEl = document.getElementById('statVariacaoDiaria');
-    if (statVarEl) statVarEl.textContent = varData.length
-        ? `Média: ${Utils.average(varData).toFixed(2)}% · Maior alta: +${Math.max(...varData).toFixed(1)}% · Maior queda: ${Math.min(...varData).toFixed(1)}%`
-        : 'Dados insuficientes.';
-
-    // ===== Índice Cumulativo de Preço (Base 100) =====
-    const indiceData = evoPrices.map(v => (v / evoPrices[0]) * 100);
-    if (typeof Charts.updateCumulativeChart === 'function') {
-        Charts.updateCumulativeChart('chIndiceCumulativo', evoLabels, indiceData, 'Data', 'Índice (Base 100)');
-    }
-    const statIndEl = document.getElementById('statIndiceCumulativo');
-    if (statIndEl) statIndEl.textContent = `Início: 100 · Atual: ${indiceData[indiceData.length-1].toFixed(1)} · Variação acumulada: ${(indiceData[indiceData.length-1] - 100).toFixed(1)}%`;
-
     // ===== Sazonalidade Mensal =====
     const mesesLabels = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
     const sazonalData = mesesLabels.map((_, i) => {
@@ -784,9 +758,6 @@ function renderDashboard() {
     });
     Charts.updateLineChart('chTemp', tempLabels, tempVals, 'Temp Média (ºC)', 'Data', 'Temperatura (°C)');
     document.getElementById('statTemp').innerText = `${tempLabels.length} dias de clima monitorados nas cidades produtoras.`;
-
-    // ===== Eventos Extremos (lag real: mostra como o preço muda após eventos) =====
-    renderExtremeEvents(historicos, mapaClima);
 
     // ===== Calendário e visão do produtor =====
     if (typeof Producer !== 'undefined') {

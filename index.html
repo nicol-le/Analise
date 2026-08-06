@@ -473,26 +473,6 @@
             <p class="text-[10px] text-slate-400 mt-2 border-t border-slate-100 pt-2"><strong>Interpretação:</strong> O eixo X mostra as datas e o eixo Y o preço em R$. A linha vermelha é o preço diário, a azul é a média móvel de 7 dias (semana) e a verde a de 30 dias (mês). As médias móveis suavizam as oscilações e revelam a tendência real: se a média de 30 dias está subindo, o preço está em alta sustentada.</p>
         </section>
 
-        <!-- Variação Diária e Índice Cumulativo -->
-        <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                <h3 class="text-sm font-bold text-slate-800 mb-6 flex items-center gap-2">
-                    <span class="material-symbols-outlined text-primary">swap_vert</span> Variação Diária de Preço (%)
-                </h3>
-                <div class="chart-container"><canvas id="chVariacaoDiaria"></canvas></div>
-                <p class="text-xs text-slate-500 mt-3 text-center" id="statVariacaoDiaria">Varação percentual dia-a-dia.</p>
-                <p class="text-[10px] text-slate-400 mt-2 border-t border-slate-100 pt-2"><strong>Interpretação:</strong> O eixo X mostra as datas e o eixo Y a variação percentual. Barras vermelhas indicam aumento de preço, verdes indicam queda. Picos extremos podem estar ligados a eventos climáticos ou de oferta.</p>
-            </div>
-            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                <h3 class="text-sm font-bold text-slate-800 mb-6 flex items-center gap-2">
-                    <span class="material-symbols-outlined text-primary">trending_up</span> Índice Cumulativo de Preço (Base 100)
-                </h3>
-                <div class="chart-container"><canvas id="chIndiceCumulativo"></canvas></div>
-                <p class="text-xs text-slate-500 mt-3 text-center" id="statIndiceCumulativo">Evolução acumulada do preço.</p>
-                <p class="text-[10px] text-slate-400 mt-2 border-t border-slate-100 pt-2"><strong>Interpretação:</strong> O eixo X mostra as datas e o eixo Y o índice (base 100 no início). Valores acima de 100 indicam que o preço subiu acumuladamente; abaixo de 100, que caiu. A linha pontilhada marca o ponto de referência (100).</p>
-            </div>
-        </section>
-
         <!-- Sazonalidade e Estatísticas Mensais -->
         <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
@@ -553,31 +533,6 @@
             </div>
         </section>
 
-        <!-- Eventos Extremos -->
-        <section class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-            <h3 class="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
-                <span class="material-symbols-outlined text-primary">flash_on</span> Eventos Climáticos Extremos × Variação de Preço
-            </h3>
-            <div class="overflow-x-auto">
-                <table class="w-full text-left border-collapse text-xs">
-                    <thead class="bg-slate-50 text-slate-500">
-                        <tr>
-                            <th class="p-3">Data</th>
-                            <th class="p-3">Tipo de Evento</th>
-                            <th class="p-3 text-right">Valor</th>
-                            <th class="p-3 text-right">Preço Base</th>
-                            <th class="p-3 text-right">Var. 7d</th>
-                            <th class="p-3 text-right">Var. 14d</th>
-                            <th class="p-3 text-right">Var. 30d</th>
-                        </tr>
-                    </thead>
-                    <tbody id="extremeEventsTable" class="divide-y divide-slate-100">
-                        <tr><td colspan="7" class="p-4 text-center text-slate-400">Execute a análise para detectar eventos extremos.</td></tr>
-                    </tbody>
-                </table>
-            </div>
-            <p class="text-[10px] text-slate-400 mt-3">Um evento é classificado como "extremo" quando o valor climático ultrapassa ±2 desvios-padrão da média do período. A variação de preço mostra o quanto o preço mudou após o evento em relação à média das 2 semanas anteriores.</p>
-        </section>
 
     </div>
 </main>

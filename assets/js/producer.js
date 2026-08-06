@@ -270,18 +270,23 @@ const Producer = {
                 // ===== Impacto por grupo de cultura =====
                 let groupImpact = '';
                 let lagInfo = '';
+                let practicalExample = '';
                 if (group === 'hortalicas') {
                     groupImpact = 'Para raízes e hortaliças, variações bruscas de temperatura podem afetar o calibre e a qualidade comercial, alterando a oferta na CEAGESP e impactando os preços de 1 a 2 semanas depois.';
                     lagInfo = 'O efeito climático nas hortaliças costuma aparecer com um atraso (lag) de aproximadamente 14 dias no preço atacadista.';
+                    practicalExample = '<strong>Exemplo prático:</strong> Se houve uma onda de calor há 10 dias, espere que os preços comecem a subir nos próximos 3 a 4 dias, pois a oferta vai diminuindo gradualmente.';
                 } else if (group === 'frutas') {
                     groupImpact = 'Nas frutas, o calor acelera a maturação. Isso pode gerar um pico de oferta inicial (pressionando os preços para baixo), seguido de escassez caso as perdas sejam altas.';
                     lagInfo = 'Frutas climatéricas respondem ao calor em 7 a 14 dias, dependendo da perecibilidade.';
+                    practicalExample = '<strong>Exemplo prático:</strong> Se a temperatura subiu muito na região produtora, na próxima semana pode haver muito produto chegando (preço baixo), mas na semana seguinte a oferta pode cair (preço alto).';
                 } else if (group === 'folhosas') {
                     groupImpact = 'Folhosas são extremamente sensíveis ao calor e chuva forte. Temperaturas elevadas podem queimar as folhas, reduzindo a oferta e causando picos rápidos de preço em poucos dias.';
                     lagInfo = 'Folhosas têm resposta quase imediata (3 a 5 dias) a eventos climáticos extremos.';
+                    practicalExample = '<strong>Exemplo prático:</strong> Uma chuva forte ou calor excessivo ontem pode significar preços mais altos já no final desta semana. A reação é rápida!';
                 } else {
                     groupImpact = 'Mudanças de temperatura afetam o ciclo da planta e a logística até o terminal, gerando oscilações de preço.';
                     lagInfo = 'O efeito no preço varia conforme o ciclo da cultura e a distância das regiões produtoras.';
+                    practicalExample = '<strong>Dica geral:</strong> Acompanhe a previsão do tempo nas principais regiões produtoras. Se o clima vai ficar adverso nos próximos dias, é bom se programar para vender antes que a oferta diminua.';
                 }
 
                 // ===== Interpretação das correlações =====
@@ -321,37 +326,51 @@ const Producer = {
                     volatInfo = ` A volatilidade está moderada (CV=${priceCV.toFixed(0)}%).`;
                 }
 
+                // ===== Explicação didática sobre correlação =====
+                let explicacaoDidatica = '';
+                if (Math.abs(rTemp) > 0.5 || Math.abs(rChuva) > 0.5) {
+                    explicacaoDidatica = `<div class="bg-indigo-50 p-3 rounded-lg border border-indigo-100">
+                        <p class="font-bold text-indigo-900 text-sm mb-1">📚 Como funciona essa análise?</p>
+                        <p class="text-xs text-indigo-800">O sistema compara <strong>dados climáticos das regiões produtoras</strong> com <strong>preços na CEAGESP</strong>. Quando encontramos uma relação forte (correlação acima de 0.5), significa que o clima está influenciando o preço. Isso acontece porque:</p>
+                        <ul class="text-xs text-indigo-800 mt-1 space-y-1 list-disc pl-4">
+                            <li>Clima extremo → afeta a produção → diminui oferta → preço sobe</li>
+                            <li>Clima favorável → aumenta produção → sobra oferta → preço cai</li>
+                        </ul>
+                        <p class="text-xs text-indigo-800 mt-1">O "lag" (atraso) é o tempo que o clima demora para impactar o preço: a planta precisa ser colhida, transportada e chegar à CEAGESP.</p>
+                    </div>`;
+                }
+
                 botEl.innerHTML = `
                     <div class="space-y-3">
-                        <p>Olá! Analisei os dados climáticos e de preço de <strong>${produto}</strong> das principais regiões produtoras.</p>
+                        <p>Olá! Eu sou o seu <strong>consultor virtual especializado em ${produto}</strong>. Analisei os dados climáticos e de preço das principais regiões produtoras para você tomar a melhor decisão. Vou explicar <strong>passo a passo</strong> o que está acontecendo:</p>
 
                         <div class="bg-blue-50 p-3 rounded-lg border border-blue-100">
-                            <p class="font-bold text-blue-900 text-sm mb-1">🌡️ Temperatura</p>
-                            <p>Nos últimos 7 dias, a temperatura média foi de <strong>${recentTemp.toFixed(1)}°C</strong>. Isso significa que a temperatura <strong>${tempTrend}</strong> em relação à semana anterior (que estava em ${oldTemp.toFixed(1)}°C).</p>
-                        </div>
-
-                        <div class="bg-cyan-50 p-3 rounded-lg border border-cyan-100">
-                            <p class="font-bold text-cyan-900 text-sm mb-1">🌧️ Chuva e Umidade</p>
-                            <p>A precipitação média <strong>${chuvaTrend}</strong> — passou de ${oldChuva.toFixed(1)}mm para ${recentChuva.toFixed(1)}mm por dia. A umidade relativa está em ${recentUmidade.toFixed(0)}%.</p>
+                            <p class="font-bold text-blue-900 text-sm mb-1">🌡️ Passo 1: O que o clima está fazendo?</p>
+                            <p>Nos últimos 7 dias, a temperatura média nas regiões produtoras foi de <strong>${recentTemp.toFixed(1)}°C</strong>. Comparando com a semana anterior (${oldTemp.toFixed(1)}°C), a temperatura <strong>${tempTrend}</strong>.</p>
+                            <p class="text-xs text-blue-800 mt-1">A precipitação média <strong>${chuvaTrend}</strong> (de ${oldChuva.toFixed(1)}mm para ${recentChuva.toFixed(1)}mm por dia) e a umidade relativa está em <strong>${recentUmidade.toFixed(0)}%</strong>.</p>
                         </div>
 
                         <div class="bg-amber-50 p-3 rounded-lg border border-amber-100">
-                            <p class="font-bold text-amber-900 text-sm mb-1">💰 Tendência de Preço</p>
-                            <p>O preço médio recente é <strong>${Utils.formatCurrency(recentAvgPrice)}</strong>, e a tendência é <strong>${priceTrend}</strong> (${priceChange > 0 ? '+' : ''}${priceChange.toFixed(1)}% vs semana anterior). O preço atual está ${vsMean > 0 ? 'acima' : 'abaixo'} da média do período em ${Math.abs(vsMean).toFixed(0)}%.</p>
+                            <p class="font-bold text-amber-900 text-sm mb-1">💰 Passo 2: Como isso afeta o preço?</p>
+                            <p>O preço médio recente é <strong>${Utils.formatCurrency(recentAvgPrice)}</strong>, e a tendência é <strong>${priceTrend}</strong> (${priceChange > 0 ? '+' : ''}${priceChange.toFixed(1)}% vs semana anterior). O preço atual está ${vsMean > 0 ? 'acima' : 'abaixo'} da média histórica em ${Math.abs(vsMean).toFixed(0)}%.</p>
+                            <p class="text-xs text-amber-800 mt-1">${groupImpact}</p>
+                            <p class="text-xs text-amber-800 mt-1">${lagInfo}</p>
+                            <p class="text-xs text-amber-800 mt-1">${practicalExample}</p>
                         </div>
 
+                        ${explicacaoDidatica}
+
                         <div class="bg-slate-50 p-3 rounded-lg border border-slate-200">
-                            <p class="font-bold text-slate-800 text-sm mb-1">📊 Análise Estatística</p>
-                            <p>${groupImpact} ${lagInfo}</p>
-                            ${corrInterpret ? `<p class="mt-1">${corrInterpret}</p>` : ''}
-                            ${chuvaInterpret ? `<p class="mt-1">${chuvaInterpret}</p>` : ''}
-                            <p class="mt-1">${volatInfo}</p>
+                            <p class="font-bold text-slate-800 text-sm mb-1">📊 Passo 3: O que os números dizem?</p>
+                            ${corrInterpret ? `<p class="text-xs text-slate-700">${corrInterpret}</p>` : ''}
+                            ${chuvaInterpret ? `<p class="text-xs text-slate-700">${chuvaInterpret}</p>` : ''}
+                            <p class="text-xs text-slate-700 mt-1">${volatInfo}</p>
                         </div>
 
                         <div class="bg-primary-container/10 p-3 rounded-lg border border-red-100">
-                            <p class="font-bold text-primary text-sm mb-1">🎯 Recomendação</p>
+                            <p class="font-bold text-primary text-sm mb-1">🎯 Passo 4: O que você deve fazer?</p>
                             <p>${recomendacao}</p>
-                            <p class="mt-1 text-sm">Consulte o calendário de vendas acima para escolher o melhor dia da semana para descarregar sua produção!</p>
+                            <p class="mt-1 text-sm">Consulte o <strong>calendário de vendas acima</strong> para escolher o melhor dia da semana para descarregar sua produção!</p>
                         </div>
                     </div>
                 `;
