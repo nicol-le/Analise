@@ -683,6 +683,16 @@ function renderDashboard() {
     if (statSazEl) statSazEl.textContent = sazonalData.some(v => v > 0)
         ? `Mês mais barato: ${mesMaisBarato} · Mês mais caro: ${mesMaisCaro}`
         : 'Sem dados suficientes para sazonalidade.';
+    const sazExplicEl = document.getElementById('sazonalExplicacao');
+    if (sazExplicEl && sazonalData.some(v => v > 0)) {
+        const caroVal = Math.max(...sazonalData);
+        const baratoVal = Math.min(...sazonalData.filter(v => v > 0));
+        const dif = baratoVal ? ((caroVal - baratoVal) / baratoVal) * 100 : 0;
+        sazExplicEl.innerHTML = `
+            <strong>Por que isso importa?</strong> A média mensal revela a <strong>sazonalidade</strong>: quando a oferta encolhe, o preço sobe. Aqui, <strong>${mesMaisCaro}</strong> é o mês historicamente mais caro (média de ${Utils.formatCurrency(caroVal)}) e <strong>${mesMaisBarato}</strong> o mais barato (média de ${Utils.formatCurrency(baratoVal)}) — uma diferença de <strong>${dif.toFixed(0)}%</strong>. Vender perto do pico e planejar a colheita para a alta costuma melhorar a margem do produtor.`;
+    } else if (sazExplicEl) {
+        sazExplicEl.textContent = 'Sem dados suficientes para explicar a sazonalidade.';
+    }
 
     // ===== Estatísticas Mensais (Mín / Med / Máx) =====
     const minMensal = mesesLabels.map((_, i) => {
@@ -716,7 +726,7 @@ function renderDashboard() {
     const histData = new Array(numBins).fill(0);
     for (let i = 0; i < numBins; i++) {
         const lo = histMin + i * binSize;
-        histLabels.push(`R$ ${lo.toFixed(0)}–${(lo + binSize).toFixed(0)}`);
+        histLabels.push(`R$ ${lo.toFixed(2)}–${(lo + binSize).toFixed(2)}`);
     }
     precosArr.forEach(v => {
         let idx = Math.floor((v - histMin) / binSize);
@@ -725,10 +735,24 @@ function renderDashboard() {
         histData[idx]++;
     });
     if (typeof Charts.updateBarChart === 'function') {
-        Charts.updateBarChart('chHistograma', histLabels, histData, 'Faixa de Preço (R$)', 'Frequência (dias)');
+        Charts.updateBarChart('chHistograma', histLabels, histData, 'Faixa de Preço (R$)', 'Frequência (dias)', 45);
+        // O mesmo histograma também aparece na aba do Produtor.
+        Charts.updateBarChart('chHistogramaProd', histLabels, histData, 'Faixa de Preço (R$)', 'Frequência (dias)', 45);
     }
     const statHistEl = document.getElementById('statHistograma');
     if (statHistEl) statHistEl.textContent = `${precosArr.length} preços distribuídos em ${numBins} faixas.`;
+    const statHistProdEl = document.getElementById('statHistogramaProd');
+    if (statHistProdEl) statHistProdEl.textContent = `${precosArr.length} preços distribuídos em ${numBins} faixas.`;
+    const histExplicEl = document.getElementById('histogramaExplicacao');
+    if (histExplicEl && histData.length) {
+        const peakIdx = histData.indexOf(Math.max(...histData));
+        const peakLabel = histLabels[peakIdx] || '';
+        const peakCount = histData[peakIdx];
+        histExplicEl.innerHTML = `
+            <strong>O que isso mostra?</strong> A faixa de preço mais comum neste período foi <strong>${peakLabel}</strong> (${peakCount} de ${precosArr.length} dias). A mediana ficou em <strong>${Utils.formatCurrency(mediana)}</strong>. Se as barras estão concentradas, o preço é estável; se estão espalhadas, ele varia muito (mais risco e mais oportunidades).`;
+    } else if (histExplicEl) {
+        histExplicEl.textContent = 'Sem dados suficientes para o histograma.';
+    }
 
     // ===== Volatilidade Móvel (janela 30 dias) =====
     const windowSize = 30;

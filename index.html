@@ -185,22 +185,23 @@
 <aside class="fixed left-0 top-0 bottom-0 z-40 h-full w-80 hidden md:flex flex-col bg-white border-r border-slate-200">
     <div class="p-6 flex items-center gap-3">
         <div class="w-10 h-10 rounded-lg bg-primary-container flex items-center justify-center text-white">
-            <span class="material-symbols-outlined">analytics</span>
+            <span class="material-symbols-outlined text-white text-2xl"
+              style="font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;">analytics</span>
         </div>
         <div>
             <h2 class="font-bold text-primary text-lg">Analista de Mercado</h2>
             <p class="text-xs text-slate-500">CEAGESP Terminal</p>
         </div>
     </div>
-    <nav class="flex-1 px-4 space-y-1">
-        <div class="bg-primary-container text-white rounded-lg flex items-center px-4 py-3 cursor-pointer" onclick="switchTab('produtor')">
+    <nav class="flex-1 px-4 space-y-2 mt-4">
+        <div class="bg-primary-container text-white rounded-lg flex items-center px-4 py-3 cursor-pointer transition-all" onclick="switchTab('produtor')">
             <span class="material-symbols-outlined mr-3 text-sm">agriculture</span> Para o Produtor
         </div>
         <div class="text-slate-600 hover:bg-slate-50 rounded-lg flex items-center px-4 py-3 cursor-pointer transition-all" onclick="switchTab('analise')">
             <span class="material-symbols-outlined mr-3 text-sm">analytics</span> Análise Técnica
         </div>
     </nav>
-    <div class="p-6 border-t border-slate-100">
+    <div class="p-6 border-t border-slate-100 mt-auto">
         <div class="flex items-center gap-2">
             <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
             <p class="text-xs font-mono text-slate-500" id="status-label">SISTEMA ONLINE</p>
@@ -306,13 +307,13 @@
             </div>
         </section>
 
-        <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div class="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+        <section class="flex flex-col gap-6">
+            <div class="w-full bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
                     <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2" id="prodCalendarTitle">
                         <span class="material-symbols-outlined text-primary">calendar_month</span> Calendário de venda
-                </h3>
-                    <div class="flex flex-wrap gap-2 text-[9px] font-bold">
+                    </h3>
+                    <div class="flex flex-wrap gap-2 text-[11px] font-bold">
                         <span class="px-2 py-0.5 rounded bg-green-500 text-white">Ótimo</span>
                         <span class="px-2 py-0.5 rounded bg-green-100 text-green-900">Bom</span>
                         <span class="px-2 py-0.5 rounded bg-slate-100 text-slate-600">Ok</span>
@@ -321,24 +322,50 @@
                     </div>
                 </div>
                 <div id="prodCalendarGrid" class="grid grid-cols-7 gap-1.5"></div>
-                <p class="text-[11px] text-slate-600 mt-4 leading-relaxed" id="prodCalendarTip">Execute uma análise para ver os melhores dias e semanas para levar o produto.</p>
+                <p class="text-[11px] text-slate-600 mt-4 leading-relaxed" id="prodCalendarTip">Execute uma análise para ver os melhores dias e semanas para levar o produto. <strong>A CEAGESP só comercializa (recebe produtos) às segundas, quartas e sextas</strong> — os demais dias aparecem em cinza.</p>
             </div>
             
-            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col">
+            <!-- Consultor Virtual abaixo do calendário -->
+            <div class="w-full bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                 <h3 class="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2 text-primary">
                     <span class="material-symbols-outlined">smart_toy</span> Consultor Virtual
                 </h3>
-                <div class="flex-1 bg-surface p-5 rounded-xl border border-slate-100 text-base text-slate-700 leading-relaxed overflow-y-auto" style="max-height: 420px;">
-                    <p id="bot-explicacao" class="text-slate-500">Olá! Eu sou o seu consultor virtual. Execute uma análise para que eu possa avaliar as temperaturas recentes, correlações climáticas e lhe explicar como isso deve afetar os preços dessa semana!</p>
-                </div>
+                <p id="bot-explicacao" class="text-slate-500 text-lg">Olá! Eu sou o seu consultor virtual. Execute uma análise para que eu possa avaliar as temperaturas recentes, correlações climáticas e lhe explicar como isso deve afetar os preços dessa semana!</p>
                 <div class="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                    <p class="text-xs text-amber-800">
-                        <strong>Importante:</strong> Os dados apresentados são baseados em análise histórica do banco de dados da CEAGESP e dados climáticos das principais regiões produtoras. 
-                        <strong>Não se trata de previsão ou projeção futura.</strong> 
-                        As correlações identificadas refletem padrões observados no período analisado e devem ser usadas como referência para tomada de decisão.
-                    </p>
+                    <p class="font-bold text-primary text-base mb-1">Passo 1: Análise climática</p>
+                    <p class="text-slate-600 text-sm">Verifique as previsões de temperatura e chuva para o período.</p>
+                    <p class="font-bold text-primary text-base mb-1 mt-3">Passo 2: Avaliar tendências de preço</p>
+                    <p class="text-slate-600 text-sm">Consulte o calendário de venda para identificar os melhores dias.</p>
+                    <p class="font-bold text-primary text-base mb-1 mt-3">Passo 3: Decisão</p>
+                    <p class="text-slate-600 text-sm">Baseie-se nas cores do calendário: Verde (Bom) para vender, Ambar (Ok) para esperar, Cinza (Off) para dias sem comércio.</p>
                 </div>
             </div>
+
+            <p class="text-xs text-amber-800 bg-amber-50 p-4 rounded-xl border border-amber-100">
+                <strong>Importante:</strong> Os dados apresentados são baseados em análise histórica do banco de dados da CEAGESP e dados climáticos das principais regiões produtoras. 
+                <strong>Não se trata de previsão ou projeção futura.</strong> 
+                As correlações identificadas refletem padrões observados no período analisado e devem ser usadas como referência para tomada de decisão.
+            </p>
+        </section>
+
+        <section class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+            <h3 class="text-sm font-bold text-slate-800 mb-1 flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary">calendar_month</span> Sazonalidade de Preços (Média Mensal)
+            </h3>
+            <div class="chart-container"><canvas id="chSazonal"></canvas></div>
+            <p class="text-xs text-slate-500 mt-3 text-center" id="statSazonal">Preço médio por mês.</p>
+            <div id="sazonalExplicacao" class="text-sm text-slate-700 leading-relaxed bg-primary-container/5 border border-red-100 rounded-xl p-4 mt-3">Execute uma análise para saber qual é o melhor (e o pior) mês para comercializar este produto.</div>
+            <p class="text-[10px] text-slate-400 mt-2 border-t border-slate-100 pt-2"><strong>Interpretação:</strong> O eixo X mostra os meses e o eixo Y o preço médio em R$. Barras altas indicam meses historicamente caros (escassez de oferta); barras baixas, meses baratos (safra cheia). Como a CEAGESP comercializa às segundas, quartas e sextas, use esta média mensal para planejar a época de levar sua produção.</p>
+        </section>
+
+        <section class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+            <h3 class="text-sm font-bold text-slate-800 mb-1 flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary">bar_chart</span> Distribuição de Preços (Histograma)
+            </h3>
+            <div class="chart-container"><canvas id="chHistogramaProd"></canvas></div>
+            <p class="text-xs text-slate-500 mt-3 text-center" id="statHistogramaProd">Frequência de faixas de preço.</p>
+            <div id="histogramaExplicacao" class="text-sm text-slate-700 leading-relaxed bg-primary-container/5 border border-red-100 rounded-xl p-4 mt-3">Execute uma análise para ver a faixa de preço mais comum deste produto.</div>
+            <p class="text-[10px] text-slate-400 mt-2 border-t border-slate-100 pt-2"><strong>Interpretação:</strong> Cada barra mostra quantos dias o preço ficou naquela faixa (em R$, com centavos). A barra mais alta é a faixa de preço mais comum. Barras concentradas = preço estável; barras espalhadas = preço varia muito.</p>
         </section>
 
         <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
@@ -480,17 +507,9 @@
             <p class="text-[10px] text-slate-400 mt-2 border-t border-slate-100 pt-2"><strong>Interpretação:</strong> O eixo X mostra as datas e o eixo Y o preço em R$. A linha vermelha é o preço diário, a azul é a média móvel de 7 dias (semana) e a verde a de 30 dias (mês). As médias móveis suavizam as oscilações e revelam a tendência real: se a média de 30 dias está subindo, o preço está em alta sustentada.</p>
         </section>
 
-        <!-- Sazonalidade e Estatísticas Mensais -->
-        <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                <h3 class="text-sm font-bold text-slate-800 mb-6 flex items-center gap-2">
-                    <span class="material-symbols-outlined text-primary">calendar_month</span> Sazonalidade de Preços (Média Mensal)
-                </h3>
-                <div class="chart-container"><canvas id="chSazonal"></canvas></div>
-                <p class="text-xs text-slate-500 mt-3 text-center" id="statSazonal">Preço médio por mês.</p>
-                <p class="text-[10px] text-slate-400 mt-2 border-t border-slate-100 pt-2"><strong>Interpretação:</strong> O eixo X mostra os meses e o eixo Y o preço médio em R$. Barras altas indicam meses historicamente caros; barras baixas, meses baratos. Use esta informação para planejar a época de venda.</p>
-            </div>
-            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+        <!-- Estatísticas Mensais -->
+        <section class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+            <div>
                 <h3 class="text-sm font-bold text-slate-800 mb-6 flex items-center gap-2">
                     <span class="material-symbols-outlined text-primary">leaderboard</span> Estatísticas Mensais (Mín / Med / Máx)
                 </h3>
@@ -585,11 +604,21 @@
         }
 
         // Fix map rendering issue when switching tabs
-        if (tab === 'produtor' && window.appMap) {
-            setTimeout(() => window.appMap.invalidateSize(), 100);
+        if (tab === 'produtor') {
+            setTimeout(() => {
+                if (window.appMap) window.appMap.invalidateSize();
+                // Redimensiona os gráficos (ex.: Sazonalidade) que ficaram ocultos
+                if (window.appState && appState.charts) {
+                    Object.values(appState.charts).forEach(ch => {
+                        if (ch && typeof ch.resize === 'function') ch.resize();
+                    });
+                }
+            }, 100);
         }
     }
 </script>
+
+
 </body>
 </html>
 

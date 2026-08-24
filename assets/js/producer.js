@@ -38,27 +38,57 @@ const Producer = {
 
         const daysInMonth = new Date(year, month + 1, 0).getDate();
         const days = [];
+        // CEAGESP só comercializa às segundas (1), quartas (3) e sextas (5).
+        const TRADING_DOWS = [1, 3, 5];
         for (let day = 1; day <= daysInMonth; day++) {
             const dateObj = new Date(year, month, day);
             const dow = dateObj.getDay();
+            // A CEAGESP só comercializa (recebe produtos) às segundas (1), quartas (3) e sextas (5).
+            const isTrading = TRADING_DOWS.includes(dow);
             const dowMean = byDow[dow].length ? Utils.average(byDow[dow]) : overallMean;
             const domMean = byDom[day].length ? Utils.average(byDom[day]) : overallMean;
-            // Score: média ponderada dia-do-mês + dia-da-semana vs média do mês
-            const expected = 0.55 * domMean + 0.45 * dowMean;
+            // Score: ênfase no padrão do dia da semana (Seg/Qua/Sex), com pouca influência do dia exato.
+            const expected = 0.3 * domMean + 0.7 * dowMean;
             const z = (expected - overallMean) / overallStd;
-            let tier = 'medio';
-            if (z >= 0.45) tier = 'otimo';
-            else if (z >= 0.1) tier = 'bom';
-            else if (z <= -0.45) tier = 'ruim';
-            else if (z <= -0.1) tier = 'fraco';
+            let tier = 'off'; // dias sem comercialização
+            if (isTrading) {
+                if (z >= 0.45) tier = 'otimo';
+                else if (z >= 0.1) tier = 'bom';
+                else if (z <= -0.45) tier = 'ruim';
+                else if (z <= -0.1) tier = 'fraco';
+                else tier = 'medio';
+            }
+
+            // Motivo: feriados climáticos ou datas festivais que podem influenciar preço
+            const reasonMap = {
+                // Feriados nacionais (PT-BR) que costumam reduzir oferta ou alterar demanda
+                '01-01': 'Confraternização Universal – reduz atividade',
+                '02-13': 'Carnaval – feriado, menor movimento de mercado',
+                '02-14': 'Carnaval – feriado, menor movimento de mercado',
+                '04-21': 'Tiradentes – feriado nacional',
+                '05-01': 'Dia do Trabalho – feriado, impacta produção',
+                '09-07': 'Independência do Brasil – feriado',
+                '12-25': 'Natal – feriado, redução de colheitas',
+                // Estações climáticas em São Paulo
+                '12-01':'Verão chuvoso – pode afetar colheitas de verão',
+                '01-01':'Verão chuvoso – pode afetar colheitas de verão',
+                '02-01':'Verão chuvoso – pode afetar colheitas de verão',
+                '06-01':'Seca invernal – oferta reduzida',
+                '07-01':'Seca invernal – oferta reduzida',
+                '08-01':'Seca invernal – oferta reduzida',
+            };
+            const reasonKey = `${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const reason = reasonMap[reasonKey] || '';
 
             days.push({
                 day,
                 dow,
+                isTrading,
                 dateStr: `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
                 expected,
                 z,
                 tier,
+                reason,
                 isPast: dateObj < new Date(last.date + 'T00:00:00'),
                 isToday: dateObj.toDateString() === lastDate.toDateString()
             });
@@ -70,21 +100,27 @@ const Producer = {
         days.forEach(d => {
             const weekNum = Math.ceil(d.day / 7);
             if (!current || current.weekNum !== weekNum) {
-                current = { weekNum, days: [], score: 0 };
+                current = { weekNum, days: [], score: 0, tier: 'medio' };
                 weeks.push(current);
             }
             current.days.push(d);
         });
         weeks.forEach(w => {
-            w.score = Utils.average(w.days.map(d => d.z));
-            w.tier = w.score >= 0.35 ? 'otimo' : w.score >= 0.05 ? 'bom' : w.score <= -0.35 ? 'ruim' : 'medio';
             w.label = `${w.days[0].day}–${w.days[w.days.length - 1].day}`;
+            const tradingDays = w.days.filter(d => d.isTrading);
+            if (tradingDays.length) {
+                w.score = Utils.average(tradingDays.map(d => d.z));
+                w.tier = w.score >= 0.35 ? 'otimo' : w.score >= 0.05 ? 'bom' : w.score <= -0.35 ? 'ruim' : 'medio';
+            } else {
+                w.score = null;
+                w.tier = 'off';
+            }
         });
 
         const bestDays = [...days].filter(d => d.tier === 'otimo' || d.tier === 'bom')
             .sort((a, b) => b.z - a.z)
             .slice(0, 7);
-        const bestWeek = [...weeks].sort((a, b) => b.score - a.score)[0];
+        const bestWeek = [...weeks].filter(w => w.score != null).sort((a, b) => b.score - a.score)[0];
 
         return {
             year,
@@ -153,13 +189,21 @@ const Producer = {
 
         if (grid) {
             const firstDow = new Date(cal.year, cal.month, 1).getDay();
-            let html = this.weekDays.map(d => `<div class="text-center text-[10px] font-bold text-slate-400 py-1">${d}</div>`).join('');
+            let html = this.weekDays.map(d => `<div class="text-center text-xs font-bold text-slate-500 py-1">${d}</div>`).join('');
             for (let i = 0; i < firstDow; i++) html += '<div></div>';
             cal.days.forEach(d => {
                 const ring = d.isToday ? 'ring-2 ring-primary' : '';
+                if (!d.isTrading) {
+                    // Dia sem comercialização na CEAGESP (mostrado, mas sem pontuação).
+                    html += `
+                        <div class="aspect-square rounded-lg flex flex-col items-center justify-center bg-slate-50 text-slate-300 ${ring}" title="Sem comercialização">
+                            <span class="text-xs opacity-70">${d.day}</span>
+                        </div>`;
+                    return;
+                }
                 html += `
-                    <div class="aspect-square rounded-lg flex flex-col items-center justify-center text-xs ${this._dayBg(d.tier)} ${ring}" title="Score ${d.z.toFixed(2)}">
-                        <span class="font-bold">${d.day}</span>
+                    <div class="aspect-square rounded-lg flex flex-col items-center justify-center ${this._dayBg(d.tier)} ${ring}" title="${d.reason || 'Sem motivo'} — Score ${d.z.toFixed(2)}">
+                        <span class="font-bold text-xs">${d.day}</span>
                         <span class="text-[8px] opacity-80">${this._tierShort(d.tier)}</span>
                     </div>`;
             });
@@ -364,21 +408,21 @@ const Producer = {
                 }
 
                 botEl.innerHTML = `
-                    <div class="space-y-3">
+                    <div class="space-y-3 text-lg">
                         <p>Olá! Eu sou o seu <strong>consultor virtual especializado em ${produto}</strong>. Analisei os dados climáticos e de preço das principais regiões produtoras para você tomar a melhor decisão. Vou explicar <strong>passo a passo</strong> o que está acontecendo:</p>
 
                         <div class="bg-blue-50 p-3 rounded-lg border border-blue-100">
-                            <p class="font-bold text-blue-900 text-sm mb-1">Passo 1: O que o clima está fazendo?</p>
+                            <p class="font-bold text-blue-900 text-base mb-1">Passo 1: O que o clima está fazendo?</p>
                             <p>Nos últimos 7 dias, a temperatura média nas regiões produtoras foi de <strong>${recentTemp.toFixed(1)}°C</strong>. Comparando com a semana anterior (${oldTemp.toFixed(1)}°C), a temperatura <strong>${tempTrend}</strong>.</p>
-                            <p class="text-xs text-blue-800 mt-1">A precipitação média <strong>${chuvaTrend}</strong> (de ${oldChuva.toFixed(1)}mm para ${recentChuva.toFixed(1)}mm por dia) e a umidade relativa está em <strong>${recentUmidade.toFixed(0)}%</strong>.</p>
+                            <p class="text-sm text-blue-800 mt-1">A precipitação média <strong>${chuvaTrend}</strong> (de ${oldChuva.toFixed(1)}mm para ${recentChuva.toFixed(1)}mm por dia) e a umidade relativa está em <strong>${recentUmidade.toFixed(0)}%</strong>.</p>
                         </div>
 
                         <div class="bg-amber-50 p-3 rounded-lg border border-amber-100">
-                            <p class="font-bold text-amber-900 text-sm mb-1">Passo 2: Como isso afeta o preço?</p>
+                            <p class="font-bold text-amber-900 text-base mb-1">Passo 2: Como isso afeta o preço?</p>
                             <p>O preço médio recente é <strong>${Utils.formatCurrency(recentAvgPrice)}</strong>, e a tendência é <strong>${priceTrend}</strong> (${priceChange > 0 ? '+' : ''}${priceChange.toFixed(1)}% vs semana anterior). O preço atual está ${vsMean > 0 ? 'acima' : 'abaixo'} da média histórica em ${Math.abs(vsMean).toFixed(0)}%.</p>
-                            <p class="text-xs text-amber-800 mt-1">${groupImpact}</p>
-                            <p class="text-xs text-amber-800 mt-1">${lagInfo}</p>
-                            <p class="text-xs text-amber-800 mt-1">${practicalExample}</p>
+                            <p class="text-sm text-amber-800 mt-1">${groupImpact}</p>
+                            <p class="text-sm text-amber-800 mt-1">${lagInfo}</p>
+                            <p class="text-sm text-amber-800 mt-1">${practicalExample}</p>
                         </div>
 
                         ${citiesInfo}
@@ -386,21 +430,20 @@ const Producer = {
                         ${explicacaoDidatica}
 
                         <div class="bg-slate-50 p-3 rounded-lg border border-slate-200">
-                            <p class="font-bold text-slate-800 text-sm mb-1">Passo 3: O que os números dizem?</p>
-                            ${corrInterpret ? `<p class="text-xs text-slate-700">${corrInterpret}</p>` : ''}
-                            ${chuvaInterpret ? `<p class="text-xs text-slate-700">${chuvaInterpret}</p>` : ''}
-                            <p class="text-xs text-slate-700 mt-1">${volatInfo}</p>
+                            <p class="font-bold text-slate-800 text-base mb-1">Passo 3: O que os números dizem?</p>
+                            ${corrInterpret ? `<p class="text-sm text-slate-700">${corrInterpret}</p>` : ''}
+                            ${chuvaInterpret ? `<p class="text-sm text-slate-700">${chuvaInterpret}</p>` : ''}
+                            <p class="text-sm text-slate-700 mt-1">${volatInfo}</p>
                         </div>
 
                         <div class="bg-primary-container/10 p-3 rounded-lg border border-red-100">
-                            <p class="font-bold text-primary text-sm mb-1">Passo 4: O que você deve fazer?</p>
+                            <p class="font-bold text-primary text-base mb-1">Passo 4: O que você deve fazer?</p>
                             <p>${recomendacao}</p>
-                            <p class="mt-1 text-sm">Consulte o <strong>calendário de vendas acima</strong> para escolher o melhor dia da semana para descarregar sua produção!</p>
                         </div>
                     </div>
                 `;
             } else {
-                botEl.innerHTML = '<p>Não há dados climáticos suficientes para esta análise no período selecionado. Tente um produto ou período com mais registros.</p>';
+                botEl.innerHTML = '<p class="text-lg">Não há dados climáticos suficientes para esta análise no período selecionado. Tente um produto ou período com mais registros.</p>';
             }
         }
 
@@ -431,27 +474,29 @@ const Producer = {
     },
 
     _tierLabel(t) {
-        return { otimo: 'Ótimo p/ vender', bom: 'Bom', medio: 'Neutro', fraco: 'Fraco', ruim: 'Evitar' }[t] || t;
+        return { otimo: 'Ótimo p/ vender', bom: 'Bom', medio: 'Neutro', fraco: 'Fraco', ruim: 'Evitar', off: 'Sem comércio' }[t] || t;
     },
     _tierShort(t) {
-        return { otimo: 'Ótimo', bom: 'Bom', medio: 'Ok', fraco: 'Fraco', ruim: 'Ruim' }[t] || '';
+        return { otimo: 'Ótimo', bom: 'Bom', medio: 'Ok', fraco: 'Fraco', ruim: 'Ruim', off: '' }[t] || '';
     },
     _tierClass(t) {
         return {
             otimo: 'bg-green-100 text-green-800',
             bom: 'bg-emerald-50 text-emerald-700',
-            medio: 'bg-slate-100 text-slate-600',
+            medio: 'bg-amber-100 text-amber-800', // OK - cor diferenciada
             fraco: 'bg-amber-50 text-amber-700',
-            ruim: 'bg-red-50 text-red-700'
+            ruim: 'bg-red-50 text-red-700',
+            off: 'bg-slate-50 text-slate-400'
         }[t] || 'bg-slate-100 text-slate-600';
     },
     _dayBg(t) {
         return {
             otimo: 'bg-green-500 text-white',
             bom: 'bg-green-100 text-green-900',
-            medio: 'bg-slate-50 text-slate-700',
+            medio: 'bg-amber-100 text-amber-800', // OK - cor diferenciada
             fraco: 'bg-amber-50 text-amber-900',
-            ruim: 'bg-red-50 text-red-800'
+            ruim: 'bg-red-50 text-red-800',
+            off: 'bg-slate-50 text-slate-400'
         }[t] || 'bg-slate-50';
     }
 };

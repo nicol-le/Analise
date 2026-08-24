@@ -55,7 +55,7 @@ const Charts = {
     },
 
     /** Gráfico de barras simples com eixos nomeados. */
-    updateBarChart(id, labels, data, xLabel, yLabel) {
+    updateBarChart(id, labels, data, xLabel, yLabel, xTickRotation = 0) {
         if (appState.charts[id]) appState.charts[id].destroy();
         const el = document.getElementById(id);
         if (!el) return;
@@ -77,7 +77,7 @@ const Charts = {
                 scales: {
                     x: {
                         title: { display: !!xLabel, text: xLabel, color: this.colors.text, font: { weight: 'bold' } },
-                        ticks: { color: this.colors.text }
+                        ticks: { color: this.colors.text, maxRotation: xTickRotation, minRotation: xTickRotation }
                     },
                     y: {
                         title: { display: !!yLabel, text: yLabel, color: this.colors.text, font: { weight: 'bold' } },

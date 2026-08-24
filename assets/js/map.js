@@ -12,6 +12,23 @@ const OrigemMap = {
             subdomains: 'abcd', maxZoom: 20
         }).addTo(this.map);
         this.markersGroup = L.layerGroup().addTo(this.map);
+        this.addLegend();
+    },
+
+    addLegend() {
+        const legendDiv = document.createElement('div');
+        legendDiv.innerHTML = '<div style="background: white; padding: 6px; font-size: 12px; width: 180px; border-radius: 6px; box-shadow: 0 2px 6px rgba(0,0,0,0.2);">' +
+            '<span style="font-weight:bold; margin-right: 4px;">Legenda de Tiers</span>' +
+            '<i style="background:#8b0000;color:#fff;padding:2px 4px;margin:2px 0;border-radius:3px;">Ruim</i> Preços baixos, mercado fraco<br>' +
+            '<i style="background:#ff7800;padding:2px 4px;margin:2px 0;border-radius:3px;">Fraco</i> Oferta reduzida<br>' +
+            '<i style="background:#ffbf00;padding:2px 4px;margin:2px 0;border-radius:3px;">Ok (medio)</i> Preço médio, volatilidade normal<br>' +
+            '<i style="background:#a7ff00;padding:2px 4px;margin:2px 0;border-radius:3px;">Bom</i> Boa época para vender<br>' +
+            '<i style="background:#00a859;padding:2px 4px;margin:2px 0;border-radius:3px;">Ótimo</i> Excelente momento, alta demanda<br>' +
+            '<i style="background:#ccc;padding:2px 4px;margin:2px 0;border-radius:3px;">Off</i> Dia sem comercialização na CEAGESP' +
+        '</div>';
+        legendDiv.style.cssText = 'background: white; padding: 6px; font-size: 12px; width: 180px; border-radius: 6px; box-shadow: 0 2px 6px rgba(0,0,0,0.2); position: absolute; top: 10px; right: 10px;';
+        legendDiv.title = 'Legenda de tiers de preço';
+        this.map.getContainer().appendChild(legendDiv);
     },
 
     update(cities) {
