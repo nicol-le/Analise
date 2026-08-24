@@ -191,23 +191,49 @@ const Producer = {
             const firstDow = new Date(cal.year, cal.month, 1).getDay();
             let html = this.weekDays.map(d => `<div class="text-center text-xs font-bold text-slate-500 py-1">${d}</div>`).join('');
             for (let i = 0; i < firstDow; i++) html += '<div></div>';
+            
+            const monthHolidays = [];
+            
             cal.days.forEach(d => {
                 const ring = d.isToday ? 'ring-2 ring-primary' : '';
+                const hasEvent = d.reason && d.reason !== '';
+                const dot = hasEvent ? '<span class="absolute top-1 right-1 w-1.5 h-1.5 bg-indigo-500 rounded-full" title="Data Importante"></span>' : '';
+                
+                if (hasEvent) {
+                    monthHolidays.push({ day: d.day, reason: d.reason });
+                }
+
                 if (!d.isTrading) {
                     // Dia sem comercialização na CEAGESP (mostrado, mas sem pontuação).
                     html += `
-                        <div class="aspect-square rounded-lg flex flex-col items-center justify-center bg-slate-50 text-slate-300 ${ring}" title="Sem comercialização">
+                        <div class="aspect-square rounded-lg flex flex-col items-center justify-center bg-slate-50 text-slate-300 relative ${ring} cursor-help" title="Sem comércio${hasEvent ? ' | ' + d.reason : ''}">
+                            ${dot}
                             <span class="text-xs opacity-70">${d.day}</span>
                         </div>`;
                     return;
                 }
                 html += `
-                    <div class="aspect-square rounded-lg flex flex-col items-center justify-center ${this._dayBg(d.tier)} ${ring}" title="${d.reason || 'Sem motivo'} — Score ${d.z.toFixed(2)}">
+                    <div class="aspect-square rounded-lg flex flex-col items-center justify-center ${this._dayBg(d.tier)} relative ${ring} cursor-help" title="${d.reason ? d.reason + ' | ' : ''}Tendência de preços: ${this._tierLabel(d.tier)}">
+                        ${dot}
                         <span class="font-bold text-xs">${d.day}</span>
                         <span class="text-[8px] opacity-80">${this._tierShort(d.tier)}</span>
                     </div>`;
             });
             grid.innerHTML = html;
+            
+            const holContainer = document.getElementById('prodCalendarHolidays');
+            if (holContainer) {
+                if (monthHolidays.length > 0) {
+                    holContainer.classList.remove('hidden');
+                    holContainer.innerHTML = '<p class="font-bold flex items-center gap-1"><span class="material-symbols-outlined text-sm">event</span> Datas importantes neste mês que influenciam o comércio:</p>' + 
+                        '<ul class="list-disc pl-5 mt-1 opacity-90">' + 
+                        monthHolidays.map(h => `<li><strong>Dia ${h.day}:</strong> ${h.reason}</li>`).join('') +
+                        '</ul>';
+                } else {
+                    holContainer.classList.add('hidden');
+                    holContainer.innerHTML = '';
+                }
+            }
         }
 
         // Cards simples
