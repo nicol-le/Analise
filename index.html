@@ -607,6 +607,71 @@
             </div>
         </section>
 
+        <!-- ========== PAINEL DE INFLAÇÃO (IBGE - PMC SP) ========== -->
+        <section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="p-6 border-b border-slate-100 bg-slate-50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div>
+                    <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-primary">trending_up</span>
+                        Inflação do Atacado Alimentar — São Paulo (IBGE)
+                    </h3>
+                    <p class="text-xs text-slate-500 mt-1">Variação acumulada no ano vs. mesmo período do ano anterior. Fonte: IBGE – PMC Tabela 8190 (Base 2022=100)</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-800 border border-blue-200">
+                        <span class="w-2 h-2 rounded-full bg-blue-500"></span> Estado de SP
+                    </span>
+                </div>
+            </div>
+
+            <!-- Cards de estatísticas rápidas -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-0 border-b border-slate-100">
+                <div class="p-4 border-r border-slate-100 text-center">
+                    <p class="text-[9px] font-bold text-slate-400 uppercase">Último Dado</p>
+                    <p class="text-xl font-mono font-bold text-primary mt-1" id="inflacao-latest-val">—</p>
+                    <p class="text-[10px] text-slate-500 mt-0.5" id="inflacao-latest-label">—</p>
+                    <p class="text-xs mt-1" id="inflacao-trend"></p>
+                </div>
+                <div class="p-4 border-r border-slate-100 text-center">
+                    <p class="text-[9px] font-bold text-slate-400 uppercase">Média do Período</p>
+                    <p class="text-xl font-mono font-bold text-slate-700 mt-1" id="inflacao-avg-val">—</p>
+                    <p class="text-[10px] text-slate-500 mt-0.5">Variação média</p>
+                </div>
+                <div class="p-4 border-r border-slate-100 text-center">
+                    <p class="text-[9px] font-bold text-slate-400 uppercase">Pico Positivo</p>
+                    <p class="text-xl font-mono font-bold text-red-600 mt-1" id="inflacao-max-val">—</p>
+                    <p class="text-[10px] text-slate-500 mt-0.5">Maior inflação</p>
+                </div>
+                <div class="p-4 text-center">
+                    <p class="text-[9px] font-bold text-slate-400 uppercase">Ponto Mínimo</p>
+                    <p class="text-xl font-mono font-bold text-green-600 mt-1" id="inflacao-min-val">—</p>
+                    <p class="text-[10px] text-slate-500 mt-0.5">Deflação/Menor inflação</p>
+                </div>
+            </div>
+
+            <!-- Gráfico -->
+            <div class="p-6">
+                <div id="inflacaoPanel">
+                    <div class="chart-container" style="height: 300px;">
+                        <canvas id="chInflacao"></canvas>
+                    </div>
+                </div>
+                <p class="text-[10px] text-slate-400 mt-3 border-t border-slate-100 pt-3">
+                    <strong>Interpretação:</strong>
+                    Barras <span class="text-red-500 font-semibold">vermelhas</span> indicam inflação (variação positiva acumulada no ano);
+                    barras <span class="text-green-600 font-semibold">verdes</span> indicam deflação (variação negativa).
+                    Esta série mede o índice de receita nominal do setor de atacado especializado em alimentos, bebidas e fumo.
+                    Períodos de alta inflação no atacado tendem a pressionar os preços ao produtor.
+                </p>
+            </div>
+
+            <!-- Insight textual -->
+            <div class="px-6 pb-6">
+                <div id="inflacaoInsight" class="text-sm text-slate-700 leading-relaxed bg-blue-50/60 border border-blue-100 rounded-xl p-4">
+                    <p class="text-slate-500 italic text-xs">Execute uma análise para carregar os dados de inflação do período...</p>
+                </div>
+            </div>
+        </section>
 
     </div>
 </main>
@@ -617,6 +682,7 @@
 <script src="assets/js/charts.js"></script>
 <script src="assets/js/components.js"></script>
 <script src="assets/js/producer.js"></script>
+<script src="assets/js/inflacao.js"></script>
 
 <!-- Leaflet Dependencies -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>

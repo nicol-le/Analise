@@ -217,6 +217,11 @@ window.onload = async () => {
             console.error('Erro ao buscar toneladas:', err);
         }
 
+        // Pré-carrega dados de inflação em background (sem bloquear a UI)
+        if (typeof Inflacao !== 'undefined') {
+            Inflacao.load().catch(err => console.warn('Aviso: dados de inflação indisponíveis.', err));
+        }
+
         appState.rawToneladas = toneladas;
 
         const list = document.getElementById('listProd');
@@ -786,6 +791,16 @@ function renderDashboard() {
     // ===== Calendário e visão do produtor =====
     if (typeof Producer !== 'undefined') {
         try { Producer.render(historicos, mapaClima, appState.currentProduto); } catch (err) { console.warn('Producer:', err); }
+    }
+
+    // ===== Painel de Inflação (IBGE - PMC SP) =====
+    if (typeof Inflacao !== 'undefined') {
+        Inflacao.load().then(inflacaoData => {
+            const filtered = Inflacao.filterByPeriod(inflacaoData, dateStart, dateEnd);
+            // Se o período filtrado for muito curto (menos de 2 meses), usa todo o dataset
+            const dataToRender = filtered.length >= 2 ? filtered : inflacaoData;
+            Inflacao.renderPanel(dataToRender);
+        }).catch(err => console.warn('[Inflacao] Erro ao renderizar painel:', err));
     }
 }
 
