@@ -388,5 +388,104 @@ const Api = {
             console.error("Erro ao buscar dados de toneladas:", err);
             return [];
         }
+    },
+
+    _movimentacoesCache: new Map(),
+    _ceagespMunicipiosCache: null,
+
+    /**
+     * Busca dados enriquecidos da tabela ceagesp_movimentacoes no Supabase.
+     * Retorna array de { dt_movmto, vl_tonelada, ds_municipio, nm_permis, ds_variedade, descricao_estado }
+     */
+    async fetchMovimentacoes(produto, variedade = "", dateStart = "", dateEnd = "", onProgress) {
+        if (!produto) return [];
+        const prodUpper = (produto || '').trim().toUpperCase();
+        const cacheKey = `${prodUpper}||${variedade || ''}||${dateStart || ''}||${dateEnd || ''}`;
+        if (this._movimentacoesCache.has(cacheKey)) {
+            return this._movimentacoesCache.get(cacheKey);
+        }
+
+        const cols = 'dt_movmto,vl_tonelada,ds_municipio,nm_permis,ds_variedade,descricao_estado';
+        const pageSize = 1000;
+        const maxRecords = 15000; // Amostra de alta representatividade para velocidade
+        let results = [];
+        let from = 0;
+        let done = false;
+
+        try {
+            while (!done && results.length < maxRecords) {
+                let query = _sb.from('ceagesp_movimentacoes')
+                    .select(cols)
+                    .ilike('ds_produto', prodUpper);
+
+                if (variedade) {
+                    query = query.ilike('ds_variedade', `%${variedade}%`);
+                }
+                if (dateStart) {
+                    query = query.gte('dt_movmto', dateStart);
+                }
+                if (dateEnd) {
+                    query = query.lte('dt_movmto', dateEnd);
+                }
+
+                query = query.order('dt_movmto', { ascending: true })
+                    .range(from, from + pageSize - 1);
+
+                const { data, error } = await query;
+                if (error) {
+                    console.warn('[Api] Aviso ao buscar movimentacoes:', error.message);
+                    break;
+                }
+
+                if (data && data.length > 0) {
+                    results = results.concat(data);
+                    from += pageSize;
+                    onProgress?.(results.length, maxRecords);
+                    if (data.length < pageSize) done = true;
+                } else {
+                    done = true;
+                }
+            }
+
+            console.log(`📦 [Api] ${results.length} movimentações carregadas para ${prodUpper}`);
+            this._movimentacoesCache.set(cacheKey, results);
+            return results;
+        } catch (err) {
+            console.error('[Api] Erro ao carregar movimentacoes:', err);
+            return [];
+        }
+    },
+
+    /**
+     * Carrega metadados de municípios da tabela ceagesp_municipios
+     * Retorna Map chaveado por 'MUNICIPIO' normalizado -> { uf, mesorregiao, microrregiao, ibge }
+     */
+    async fetchCeagespMunicipios() {
+        if (this._ceagespMunicipiosCache) return this._ceagespMunicipiosCache;
+
+        try {
+            // Busca os primeiros 5000 registros mais relevantes
+            const { data, error } = await _sb.from('ceagesp_municipios')
+                .select('municipio,uf,mesorregiao,microrregiao,ibge')
+                .limit(5000);
+
+            if (error) throw error;
+
+            const map = new Map();
+            (data || []).forEach(row => {
+                if (row.municipio) {
+                    const norm = (row.municipio || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().trim();
+                    map.set(norm, row);
+                }
+            });
+
+            this._ceagespMunicipiosCache = map;
+            console.log(`🗺️ [Api] ${map.size} municípios mapeados de ceagesp_municipios`);
+            return map;
+        } catch (err) {
+            console.warn('[Api] Não foi possível carregar ceagesp_municipios:', err);
+            return new Map();
+        }
     }
 };
+

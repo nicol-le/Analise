@@ -222,6 +222,11 @@ window.onload = async () => {
             Inflacao.load().catch(err => console.warn('Aviso: dados de inflação indisponíveis.', err));
         }
 
+        // Pré-carrega metadados de municípios em background
+        Api.fetchCeagespMunicipios().then(m => {
+            appState.ceagespMunicipiosMap = m;
+        }).catch(err => console.warn('Aviso: ceagesp_municipios indisponível.', err));
+
         appState.rawToneladas = toneladas;
 
         const list = document.getElementById('listProd');
@@ -252,16 +257,114 @@ window.onload = async () => {
     }
 };
 
+// ===== VARIEDADES: Cache e autocomplete =====
+let _variedadesCache = [];
+let varSuggestionsTimeout = null;
+
 async function loadVariedades() {
     const prod = document.getElementById('prodInp').value;
     const variedades = await Api.fetchVariedades(prod);
+    // Ordena alfabeticamente e salva cache
+    _variedadesCache = [...variedades].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    // Mantém datalist para compatibilidade
     const list = document.getElementById('listVar');
-    list.innerHTML = "";
-    variedades.forEach(v => {
-        let o = document.createElement('option');
-        o.value = v;
-        list.appendChild(o);
-    });
+    if (list) {
+        list.innerHTML = '';
+        _variedadesCache.forEach(v => {
+            const o = document.createElement('option');
+            o.value = v;
+            list.appendChild(o);
+        });
+    }
+    // Se o div de sugestões existir, atualiza
+    const sug = document.getElementById('varSuggestions');
+    if (sug && !sug.classList.contains('hidden')) showVarSuggestions('');
+}
+
+function onVarInput() {
+    const input = document.getElementById('varInp');
+    if (!input) return;
+    const value = input.value.trim();
+    if (varSuggestionsTimeout) clearTimeout(varSuggestionsTimeout);
+    if (!value) {
+        const sug = document.getElementById('varSuggestions');
+        if (sug) { sug.classList.add('hidden'); sug.innerHTML = ''; }
+        return;
+    }
+    varSuggestionsTimeout = setTimeout(() => showVarSuggestions(value), 200);
+}
+
+function onVarFocus() {
+    const input = document.getElementById('varInp');
+    if (!input) return;
+    const value = input.value.trim();
+    if (value) {
+        showVarSuggestions(value);
+    } else if (_variedadesCache.length > 0) {
+        showVarSuggestions('');
+    }
+}
+
+function onVarBlur() {
+    setTimeout(() => {
+        const sug = document.getElementById('varSuggestions');
+        if (sug) sug.classList.add('hidden');
+    }, 200);
+}
+
+function showVarSuggestions(filter) {
+    const sug = document.getElementById('varSuggestions');
+    if (!sug) return;
+
+    let variedades = _variedadesCache;
+    if (!variedades.length) { sug.classList.add('hidden'); return; }
+
+    let filtered = variedades;
+    if (filter) {
+        const f = filter.toUpperCase().trim();
+        filtered = variedades.filter(v => v.toUpperCase().includes(f));
+    }
+
+    if (filtered.length === 0) {
+        sug.innerHTML = `<div class="px-4 py-3 text-xs text-slate-400 italic text-center">Nenhuma variedade encontrada para "<strong>${filter}</strong>".</div>`;
+        sug.classList.remove('hidden');
+        return;
+    }
+
+    const headerHtml = `
+        <div class="sticky top-0 z-10 px-3 py-1.5 bg-slate-100 border-b border-slate-200 text-[11px] font-bold text-slate-500 flex justify-between items-center">
+            <span>${filtered.length} ${filtered.length === 1 ? 'variedade' : 'variedades'}</span>
+            <span class="text-[10px] font-normal text-slate-400">A–Z</span>
+        </div>
+    `;
+    const itemsHtml = filtered.map(v => {
+        const clean = v.trim();
+        const letter = clean.charAt(0).toUpperCase();
+        let display = clean;
+        if (filter) {
+            const rx = new RegExp(`(${filter.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+            display = clean.replace(rx, '<strong class="text-primary font-bold">$1</strong>');
+        }
+        return `
+            <div class="px-3 py-2 hover:bg-slate-50 cursor-pointer text-sm text-slate-700 border-b border-slate-100 last:border-b-0 transition-colors flex items-center justify-between group" onmousedown="selectVariedade('${clean.replace(/'/g, "\\'")}')">
+                <span class="flex items-center gap-2">
+                    <span class="w-5 h-5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold flex items-center justify-center group-hover:bg-primary-container group-hover:text-white transition-colors">${letter}</span>
+                    <span>${display}</span>
+                </span>
+                <span class="material-symbols-outlined text-xs text-slate-300 group-hover:text-primary transition-colors">chevron_right</span>
+            </div>
+        `;
+    }).join('');
+
+    sug.innerHTML = headerHtml + itemsHtml;
+    sug.classList.remove('hidden');
+}
+
+function selectVariedade(variedade) {
+    const input = document.getElementById('varInp');
+    const sug = document.getElementById('varSuggestions');
+    if (input) input.value = variedade;
+    if (sug) sug.classList.add('hidden');
 }
 
 // ===== AUTOCOMPLETE DE PRODUTOS =====
@@ -315,7 +418,15 @@ function showProdutoSuggestions(filter) {
     const suggestionsDiv = document.getElementById('produtoSuggestions');
     if (!suggestionsDiv) return;
     
-    const produtos = appState._produtosCache || [];
+    let produtos = appState._produtosCache || [];
+    
+    // Se ainda não tiver produtos em cache mas tiver rawToneladas, junta
+    if (!produtos.length && appState.rawToneladas && appState.rawToneladas.length) {
+        const set = new Set();
+        appState.rawToneladas.forEach(r => { if (r.PRODUTO) set.add(r.PRODUTO.trim()); });
+        produtos = [...set].sort();
+        appState._produtosCache = produtos;
+    }
     
     if (!produtos.length) {
         suggestionsDiv.classList.add('hidden');
@@ -325,24 +436,49 @@ function showProdutoSuggestions(filter) {
     // Filtra produtos baseado no texto digitado
     let filtered = produtos;
     if (filter) {
-        const filterUpper = filter.toUpperCase();
+        const filterUpper = filter.toUpperCase().trim();
         filtered = produtos.filter(p => p.toUpperCase().includes(filterUpper));
     }
     
-    // Limita a 15 sugestões para não sobrecarregar
-    filtered = filtered.slice(0, 15);
-    
     if (filtered.length === 0) {
-        suggestionsDiv.classList.add('hidden');
+        suggestionsDiv.innerHTML = `
+            <div class="px-4 py-3 text-xs text-slate-400 italic text-center">
+                Nenhum produto encontrado para "<strong>${filter}</strong>".
+            </div>
+        `;
+        suggestionsDiv.classList.remove('hidden');
         return;
     }
     
-    // Renderiza sugestões
-    suggestionsDiv.innerHTML = filtered.map(prod => {
-        const highlight = filter ? prod.replace(new RegExp(`(${filter.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'), '<strong class="text-primary">$1</strong>') : prod;
-        return `<div class="px-4 py-2 hover:bg-slate-50 cursor-pointer text-sm text-slate-700 border-b border-slate-100 last:border-b-0 transition-colors" onmousedown="selectProduto('${prod.replace(/'/g, "\\'")}')">${highlight}</div>`;
+    // Header informativo com quantidade total e dica de rolagem
+    const headerHtml = `
+        <div class="sticky top-0 z-10 px-3 py-1.5 bg-slate-100 border-b border-slate-200 text-[11px] font-bold text-slate-500 flex justify-between items-center">
+            <span>${filtered.length} ${filtered.length === 1 ? 'produto encontrado' : 'produtos disponíveis'}</span>
+            <span class="text-[10px] font-normal text-slate-400">Role para ver de A a Z</span>
+        </div>
+    `;
+
+    // Renderiza a lista completa de produtos com rolagem
+    const itemsHtml = filtered.map(prod => {
+        const cleanProd = prod.trim();
+        const firstLetter = cleanProd.charAt(0).toUpperCase();
+        let displayHtml = cleanProd;
+        if (filter) {
+            const regex = new RegExp(`(${filter.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+            displayHtml = cleanProd.replace(regex, '<strong class="text-primary font-bold">$1</strong>');
+        }
+        return `
+            <div class="px-3 py-2 hover:bg-slate-50 cursor-pointer text-sm text-slate-700 border-b border-slate-100 last:border-b-0 transition-colors flex items-center justify-between group" onmousedown="selectProduto('${cleanProd.replace(/'/g, "\\'")}')">
+                <span class="flex items-center gap-2">
+                    <span class="w-5 h-5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold flex items-center justify-center group-hover:bg-primary-container group-hover:text-white transition-colors">${firstLetter}</span>
+                    <span>${displayHtml}</span>
+                </span>
+                <span class="material-symbols-outlined text-xs text-slate-300 group-hover:text-primary transition-colors">chevron_right</span>
+            </div>
+        `;
     }).join('');
     
+    suggestionsDiv.innerHTML = headerHtml + itemsHtml;
     suggestionsDiv.classList.remove('hidden');
 }
 
@@ -400,9 +536,23 @@ async function processar() {
         appState.dateEnd = datas.length ? datas[datas.length - 1] : new Date().toISOString().split('T')[0];
     }
 
-    // ETAPA 2: Coletar dados climáticos (Open-Meteo primeiro; reserva só se falhar)
-    LoadingScreen.update(2, 'Coletando dados climáticos das cidades produtoras...');
-    LoadingScreen.setProgress(40);
+    // ETAPA 2: Buscar movimentações reais e produtores (ceagesp_movimentacoes)
+    LoadingScreen.update(2, `Buscando movimentações físicas e produtores de "${prod}"...`);
+    LoadingScreen.setProgress(35);
+    try {
+        const movData = await Api.fetchMovimentacoes(prod, varInp, appState.dateStart, appState.dateEnd, (done, total) => {
+            const pct = 35 + Math.round((done / Math.max(total, 1)) * 10);
+            LoadingScreen.setProgress(pct);
+        });
+        appState.rawMovimentacoes = movData;
+    } catch (err) {
+        console.warn('Erro ao buscar movimentações:', err);
+        appState.rawMovimentacoes = [];
+    }
+
+    // ETAPA 3: Coletar dados climáticos (com base nas cidades produtoras reais)
+    LoadingScreen.update(3, 'Coletando dados climáticos das cidades produtoras...');
+    LoadingScreen.setProgress(45);
 
     const allCities = getProducerCities(prod);
     const topN = Api.WEATHER_TOP_CITIES || 5;
@@ -427,21 +577,20 @@ async function processar() {
 
     // Só busca clima de reserva do Supabase se Open-Meteo falhou
     if (!gotWeather) {
-        LoadingScreen.update(2, 'Buscando base climática de reserva...');
+        LoadingScreen.update(3, 'Buscando base climática de reserva...');
         const clima = await Api.fetchClima();
         appState.rawClima = clima;
     }
-    LoadingScreen.setProgress(55);
-
-    // ETAPA 3: Analisar sazonalidade e tendências
-    LoadingScreen.update(3, 'Analisando sazonalidade e tendências de preço...');
     LoadingScreen.setProgress(60);
-    // Pequeno delay para a UI atualizar
+
+    // ETAPA 4: Analisar sazonalidade e tendências
+    LoadingScreen.update(4, 'Analisando sazonalidade e tendências de preço...');
+    LoadingScreen.setProgress(70);
     await new Promise(r => setTimeout(r, 50));
 
-    // ETAPA 4: Montar mapa de produção
-    LoadingScreen.update(4, 'Montando mapa de produção e cidades produtoras...');
-    LoadingScreen.setProgress(70);
+    // ETAPA 5: Montar mapa de produção
+    LoadingScreen.update(5, 'Montando mapa de produção e cidades produtoras...');
+    LoadingScreen.setProgress(80);
     try {
         renderOriginData(appState.currentProduto);
     } catch (err) {
@@ -449,9 +598,9 @@ async function processar() {
     }
     await new Promise(r => setTimeout(r, 50));
 
-    // ETAPA 5: Calcular correlações clima × preço
-    LoadingScreen.update(5, 'Calculando correlações clima × preço e impacto térmico...');
-    LoadingScreen.setProgress(80);
+    // ETAPA 6: Calcular correlações clima × preço e finalizar
+    LoadingScreen.update(6, 'Calculando correlações clima × preço e indicadores de mercado...');
+    LoadingScreen.setProgress(90);
     try {
         renderDashboard();
     } catch (err) {
@@ -487,6 +636,48 @@ function getProducerCities(produto) {
     const targetNorm = normalize(produto);
     if (!targetNorm) return [];
 
+    // Prioridade 1: Movimentações Reais do Supabase (ceagesp_movimentacoes)
+    if (appState.rawMovimentacoes && appState.rawMovimentacoes.length > 0) {
+        const totals = new Map();
+        const estadoSiglas = {
+            'SAO PAULO': 'SP', 'MINAS GERAIS': 'MG', 'PARANA': 'PR', 'SANTA CATARINA': 'SC',
+            'RIO GRANDE DO SUL': 'RS', 'BAHIA': 'BA', 'GOIAS': 'GO', 'ESPIRITO SANTO': 'ES',
+            'RIO DE JANEIRO': 'RJ', 'PERNAMBUCO': 'PE', 'CEARA': 'CE', 'MATO GROSSO': 'MT',
+            'MATO GROSSO DO SUL': 'MS'
+        };
+
+        appState.rawMovimentacoes.forEach(row => {
+            const rawMun = (row.ds_municipio || '').trim();
+            if (!rawMun) return;
+
+            let uf = '';
+            let nomeMun = rawMun;
+            const parts = rawMun.split(/\s+/);
+            const lastPart = parts[parts.length - 1].toUpperCase();
+
+            // Se termina com sigla de 2 letras (ex: "TIJUCAS DO SUL PR")
+            if (lastPart.length === 2 && /^[A-Z]{2}$/.test(lastPart)) {
+                uf = lastPart;
+                nomeMun = parts.slice(0, -1).join(' ');
+            } else if (row.descricao_estado) {
+                uf = estadoSiglas[normalize(row.descricao_estado)] || '';
+            }
+
+            const canonical = normalize(nomeMun).replace(/[^A-Z0-9]/g, '');
+            const key = `${canonical}|${uf}`;
+            const current = totals.get(key) || { municipio: nomeMun, uf, volume: 0 };
+            current.volume += parseFloat(row.vl_tonelada) || 0;
+            totals.set(key, current);
+        });
+
+        const list = [...totals.values()].sort((a, b) => b.volume - a.volume);
+        if (list.length > 0) {
+            console.log(`📍 [getProducerCities] ${list.length} cidades calculadas com base nas movimentações reais do período.`);
+            return list;
+        }
+    }
+
+    // Fallback: Base anual CSV (dadostoneladaano.csv)
     let rows = appState.rawToneladas.filter(row => normalize(row.PRODUTO) === targetNorm);
 
     // Fallback 1: Busca por inclusão de substring se não houver match exato
@@ -793,14 +984,95 @@ function renderDashboard() {
         try { Producer.render(historicos, mapaClima, appState.currentProduto); } catch (err) { console.warn('Producer:', err); }
     }
 
+    // ===== Painel de Movimentações Físicas & Inteligência de Mercado =====
+    if (typeof Movimentacoes !== 'undefined') {
+        try {
+            Movimentacoes.render(appState.rawMovimentacoes, todosHistoricos, appState.ceagespMunicipiosMap, appState.currentProduto);
+        } catch (err) {
+            console.warn('[Movimentacoes] Erro ao renderizar painel:', err);
+        }
+    }
+
     // ===== Painel de Inflação (IBGE - PMC SP) =====
     if (typeof Inflacao !== 'undefined') {
         Inflacao.load().then(inflacaoData => {
             const filtered = Inflacao.filterByPeriod(inflacaoData, dateStart, dateEnd);
             // Se o período filtrado for muito curto (menos de 2 meses), usa todo o dataset
             const dataToRender = filtered.length >= 2 ? filtered : inflacaoData;
-            Inflacao.renderPanel(dataToRender);
+            // v2: passa também historicosPreco e produto para comparativo anual
+            Inflacao.renderPanel(dataToRender, todosHistoricos, appState.currentProduto);
         }).catch(err => console.warn('[Inflacao] Erro ao renderizar painel:', err));
+    }
+
+    // ===== Mini-gráficos de Movimentações na aba Produtor =====
+    _renderProdMovimentacoesPanel(appState.rawMovimentacoes);
+}
+
+/** Renderiza KPIs e mini-gráficos de movimentações na aba "Para o Produtor". */
+function _renderProdMovimentacoesPanel(movData) {
+    if (!movData || !movData.length) {
+        const sec = document.getElementById('prod-movimentacoes-section');
+        if (sec) sec.style.display = 'none';
+        return;
+    }
+    const sec = document.getElementById('prod-movimentacoes-section');
+    if (sec) sec.style.display = '';
+
+    // KPIs
+    const totalT = movData.reduce((s, r) => s + (parseFloat(r.vl_tonelada) || 0), 0);
+    const permisSet = new Set(movData.map(r => r.mat_permis).filter(Boolean));
+    const cidadesSet = new Set(movData.map(r => r.ds_municipio).filter(Boolean));
+    const varCount = {};
+    movData.forEach(r => { if (r.ds_variedade) varCount[r.ds_variedade] = (varCount[r.ds_variedade] || 0) + (parseFloat(r.vl_tonelada) || 0); });
+    const varLider = Object.entries(varCount).sort((a, b) => b[1] - a[1])[0]?.[0] || '—';
+
+    const setKpi = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    setKpi('prod-mov-total', totalT.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }));
+    setKpi('prod-mov-permis', permisSet.size);
+    setKpi('prod-mov-cidades', cidadesSet.size);
+    setKpi('prod-mov-var-lider', varLider);
+
+    // Mini-gráfico 1: Top 5 municípios (barras horizontais)
+    const cidCount = {};
+    movData.forEach(r => { if (r.ds_municipio) cidCount[r.ds_municipio] = (cidCount[r.ds_municipio] || 0) + (parseFloat(r.vl_tonelada) || 0); });
+    const top5Cidades = Object.entries(cidCount).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    const elMun = document.getElementById('chProdMunicipios');
+    if (elMun) {
+        if (appState.charts['chProdMunicipios']) { appState.charts['chProdMunicipios'].destroy(); delete appState.charts['chProdMunicipios']; }
+        appState.charts['chProdMunicipios'] = new Chart(elMun.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: top5Cidades.map(c => c[0].length > 18 ? c[0].substring(0, 16) + '…' : c[0]),
+                datasets: [{ label: 'Toneladas', data: top5Cidades.map(c => parseFloat(c[1].toFixed(1))), backgroundColor: 'rgba(139,0,0,0.65)', borderColor: '#8b0000', borderWidth: 1, borderRadius: 4 }]
+            },
+            options: {
+                indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ` ${ctx.parsed.x.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} t` } } },
+                scales: { x: { ticks: { color: '#64748b', font: { size: 10 }, callback: v => v >= 1000 ? (v/1000).toFixed(0)+'k' : v }, grid: { color: '#e2e8f0' } }, y: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { display: false } } }
+            }
+        });
+    }
+
+    // Mini-gráfico 2: Mix de variedades (rosca)
+    const top5Vars = Object.entries(varCount).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    const elVar = document.getElementById('chProdVarMix');
+    if (elVar) {
+        if (appState.charts['chProdVarMix']) { appState.charts['chProdVarMix'].destroy(); delete appState.charts['chProdVarMix']; }
+        const DOUGHNUT_COLORS = ['#8b0000','#3b82f6','#10b981','#f59e0b','#8b5cf6'];
+        appState.charts['chProdVarMix'] = new Chart(elVar.getContext('2d'), {
+            type: 'doughnut',
+            data: {
+                labels: top5Vars.map(v => v[0]),
+                datasets: [{ data: top5Vars.map(v => parseFloat(v[1].toFixed(1))), backgroundColor: DOUGHNUT_COLORS, borderWidth: 2, borderColor: '#fff', hoverOffset: 6 }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false, cutout: '60%',
+                plugins: {
+                    legend: { display: true, position: 'right', labels: { color: '#334155', font: { size: 10 }, boxWidth: 10, padding: 8 } },
+                    tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} t` } }
+                }
+            }
+        });
     }
 }
 
@@ -833,22 +1105,28 @@ function renderOriginData(produto) {
         console.log(`[Mapa] Produtos similares no CSV:`, similares.slice(0, 10));
     }
 
-    const totalVolume = toneladasFiltradas.reduce((sum, row) => sum + Utils.parseBrazilFloat(row.VL_TONELADA), 0);
-    const uniqueStates = new Set(toneladasFiltradas.map(r => r.UF)).size;
-    const uniqueCities = new Set(toneladasFiltradas.map(r => r.MUNICIPIO)).size;
+    const totalVolume = appState.allProducerCities && appState.allProducerCities.length
+        ? appState.allProducerCities.reduce((sum, c) => sum + c.volume, 0)
+        : toneladasFiltradas.reduce((sum, row) => sum + Utils.parseBrazilFloat(row.VL_TONELADA), 0);
+    const uniqueStates = appState.allProducerCities && appState.allProducerCities.length
+        ? new Set(appState.allProducerCities.map(c => c.uf).filter(Boolean)).size
+        : new Set(toneladasFiltradas.map(r => r.UF)).size;
+    const uniqueCities = appState.allProducerCities && appState.allProducerCities.length
+        ? appState.allProducerCities.length
+        : new Set(toneladasFiltradas.map(r => r.MUNICIPIO)).size;
 
     const volEl = document.getElementById('log-total-volume');
     const stEl = document.getElementById('log-total-states');
     const ctEl = document.getElementById('log-total-cities');
 
-    if (toneladasFiltradas.length === 0) {
-        if (volEl) volEl.innerText = 'Sem dados (2022)';
+    if (totalVolume === 0 && toneladasFiltradas.length === 0) {
+        if (volEl) volEl.innerText = 'Sem dados';
         if (stEl) stEl.innerText = '0';
         if (ctEl) ctEl.innerText = '0';
      
         const tbody = document.getElementById('originTableBody');
         if (tbody) tbody.innerHTML = `<tr><td class="p-6 text-slate-400 italic text-center" colspan="4">
-            Nenhum dado de volume encontrado para <strong>${produto}</strong> em 2022.<br>
+            Nenhum dado de volume encontrado para <strong>${produto}</strong>.<br>
             <span class="text-xs">O nome do produto pode diferir entre as bases de dados.</span>
         </td></tr>`;
         
@@ -856,16 +1134,15 @@ function renderOriginData(produto) {
         return;
     }
 
-    if (volEl) volEl.innerText = `${totalVolume.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} t`;
+    if (volEl) volEl.innerText = `${totalVolume.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} t`;
     if (stEl) stEl.innerText = uniqueStates;
     if (ctEl) ctEl.innerText = uniqueCities;
-
 
     if (typeof OrigemMap !== 'undefined') {
         updateOriginMap();
     }
 
-    const tableData = appState.allProducerCities.map(city => ({
+    const tableData = (appState.allProducerCities || []).map(city => ({
         MUNICIPIO: city.municipio || '-',
         UF: city.uf || '-',
         VL_TONELADA: city.volume,

@@ -433,41 +433,98 @@ const Producer = {
                     </div>`;
                 }
 
-                botEl.innerHTML = `
-                    <div class="space-y-3 text-lg">
-                        <p>Olá! Eu sou o seu <strong>consultor virtual especializado em ${produto}</strong>. Analisei os dados climáticos e de preço das principais regiões produtoras para você tomar a melhor decisão. Vou explicar <strong>passo a passo</strong> o que está acontecendo:</p>
+                // ===== Bloco de inflação (integração com módulo Inflacao) =====
+                let inflacaoBlock = '';
+                if (typeof Inflacao !== 'undefined') {
+                    const ia = Inflacao.getLastAnalysis();
+                    if (ia) {
+                        const spreadIcon = ia.ganho === 'ganho' ? '📈' : ia.ganho === 'perda' ? '📉' : '➡️';
+                        const spreadColor = ia.ganho === 'ganho' ? 'text-green-700' : ia.ganho === 'perda' ? 'text-red-600' : 'text-slate-500';
+                        const spreadMsg = ia.ganho === 'ganho'
+                            ? `De ${ia.anoAnterior} para ${ia.anoAtual}, o preço de <strong>${produto}</strong> subiu <strong>${ia.variacaoPreco >= 0 ? '+' : ''}${ia.variacaoPreco?.toFixed(1)}%</strong> enquanto a inflação do setor foi de <strong>${ia.inflacaoAcum !== null ? (ia.inflacaoAcum >= 0 ? '+' : '') + ia.inflacaoAcum?.toFixed(1) + '%' : '—'}</strong>. O produtor teve um <span class="text-green-700 font-bold">ganho real de ${ia.spreadReal?.toFixed(1)} p.p.</span> acima da inflação! ${spreadIcon}`
+                            : ia.ganho === 'perda'
+                            ? `De ${ia.anoAnterior} para ${ia.anoAtual}, o preço de <strong>${produto}</strong> subiu <strong>${ia.variacaoPreco >= 0 ? '+' : ''}${ia.variacaoPreco?.toFixed(1)}%</strong> mas a inflação foi de <strong>${ia.inflacaoAcum !== null ? (ia.inflacaoAcum >= 0 ? '+' : '') + ia.inflacaoAcum?.toFixed(1) + '%' : '—'}</strong>. O produtor perdeu <span class="text-red-600 font-bold">${Math.abs(ia.spreadReal)?.toFixed(1)} p.p.</span> em poder de compra real. ${spreadIcon}`
+                            : `O preço de <strong>${produto}</strong> acompanhou a inflação entre ${ia.anoAnterior} e ${ia.anoAtual}.`;
+                        inflacaoBlock = `
+                        <div class="bg-emerald-50 p-3 rounded-lg border border-emerald-100">
+                            <p class="font-bold text-emerald-900 text-base mb-1">Passo 5: Preço vs Inflação (IBGE/SP)</p>
+                            <p class="text-sm text-emerald-800">${spreadMsg}</p>
+                            <p class="text-xs text-slate-500 mt-2">💡 <strong>O que é o spread real?</strong> É a diferença entre a variação do preço do produto e a inflação geral do setor. Se positivo, o produto valorizou acima da inflação — bom sinal para o produtor. Se negativo, o poder de compra do produtor diminuiu.</p>
+                            <p class="text-xs text-slate-400 mt-1">Fonte: IBGE – Tabela 8190 (PMC). Veja o comparativo completo na aba Análise Técnica.</p>
+                        </div>`;
+                    }
+                }
 
-                        <div class="bg-blue-50 p-3 rounded-lg border border-blue-100">
-                            <p class="font-bold text-blue-900 text-base mb-1">Passo 1: O que o clima está fazendo?</p>
-                            <p>Nos últimos 7 dias, a temperatura média nas regiões produtoras foi de <strong>${recentTemp.toFixed(1)}°C</strong>. Comparando com a semana anterior (${oldTemp.toFixed(1)}°C), a temperatura <strong>${tempTrend}</strong>.</p>
-                            <p class="text-sm text-blue-800 mt-1">A precipitação média <strong>${chuvaTrend}</strong> (de ${oldChuva.toFixed(1)}mm para ${recentChuva.toFixed(1)}mm por dia) e a umidade relativa está em <strong>${recentUmidade.toFixed(0)}%</strong>.</p>
+                const botContent = `
+                    <div class="space-y-3 text-base bot-animated" id="bot-content-inner">
+                        <div class="flex items-center gap-3 mb-4 pb-3 border-b border-slate-100">
+                            <div class="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center flex-shrink-0">
+                                <span class="material-symbols-outlined text-white text-lg">smart_toy</span>
+                            </div>
+                            <div>
+                                <p class="font-bold text-slate-800">Consultor Agrícola Virtual</p>
+                                <p class="text-xs text-slate-500">Especializado em <strong>${produto}</strong> · Análise em tempo real</p>
+                            </div>
+                            <span class="ml-auto flex items-center gap-1.5 text-xs font-bold text-green-700 bg-green-50 border border-green-200 rounded-full px-3 py-1">
+                                <span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span> Online
+                            </span>
                         </div>
 
-                        <div class="bg-amber-50 p-3 rounded-lg border border-amber-100">
-                            <p class="font-bold text-amber-900 text-base mb-1">Passo 2: Como isso afeta o preço?</p>
-                            <p>O preço médio recente é <strong>${Utils.formatCurrency(recentAvgPrice)}</strong>, e a tendência é <strong>${priceTrend}</strong> (${priceChange > 0 ? '+' : ''}${priceChange.toFixed(1)}% vs semana anterior). O preço atual está ${vsMean > 0 ? 'acima' : 'abaixo'} da média histórica em ${Math.abs(vsMean).toFixed(0)}%.</p>
-                            <p class="text-sm text-amber-800 mt-1">${groupImpact}</p>
-                            <p class="text-sm text-amber-800 mt-1">${lagInfo}</p>
-                            <p class="text-sm text-amber-800 mt-1">${practicalExample}</p>
+                        <p class="leading-relaxed text-slate-700">Olá! Sou seu consultor virtual especializado em <strong>${produto}</strong>. Analisei os dados climáticos das regiões produtoras, o histórico de preços na CEAGESP e os dados de inflação do IBGE. Veja o resumo completo:</p>
+
+                        <div class="bg-blue-50 p-4 rounded-xl border border-blue-100">
+                            <p class="font-bold text-blue-900 flex items-center gap-2 mb-2"><span class="material-symbols-outlined text-sm">thermostat</span> Clima Recente nas Regiões Produtoras</p>
+                            <p class="text-sm text-blue-800">Nos últimos 7 dias a temperatura média foi de <strong>${recentTemp.toFixed(1)}°C</strong> (semana anterior: ${oldTemp.toFixed(1)}°C — <strong>${tempTrend}</strong>).</p>
+                            <p class="text-sm text-blue-800 mt-1.5">Precipitação <strong>${chuvaTrend}</strong> (de ${oldChuva.toFixed(1)} mm para ${recentChuva.toFixed(1)} mm/dia). Umidade relativa: <strong>${recentUmidade.toFixed(0)}%</strong>.</p>
+                        </div>
+
+                        <div class="bg-amber-50 p-4 rounded-xl border border-amber-100">
+                            <p class="font-bold text-amber-900 flex items-center gap-2 mb-2"><span class="material-symbols-outlined text-sm">price_change</span> Impacto no Preço</p>
+                            <p class="text-sm text-amber-800">Preço médio recente: <strong>${Utils.formatCurrency(recentAvgPrice)}</strong> — tendência <strong>${priceTrend}</strong> (${priceChange > 0 ? '+' : ''}${priceChange.toFixed(1)}% vs semana anterior). Preço atual ${vsMean > 0 ? 'acima' : 'abaixo'} da média em ${Math.abs(vsMean).toFixed(0)}%.</p>
+                            <p class="text-sm text-amber-800 mt-1.5">${groupImpact}</p>
+                            <p class="text-sm text-amber-800 mt-1.5 italic">${lagInfo}</p>
+                            <p class="text-sm text-amber-800 mt-1.5">${practicalExample}</p>
                         </div>
 
                         ${citiesInfo}
 
                         ${explicacaoDidatica}
 
-                        <div class="bg-slate-50 p-3 rounded-lg border border-slate-200">
-                            <p class="font-bold text-slate-800 text-base mb-1">Passo 3: O que os números dizem?</p>
+                        <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                            <p class="font-bold text-slate-800 flex items-center gap-2 mb-2"><span class="material-symbols-outlined text-sm">bar_chart</span> Correlações Estatísticas</p>
                             ${corrInterpret ? `<p class="text-sm text-slate-700">${corrInterpret}</p>` : ''}
-                            ${chuvaInterpret ? `<p class="text-sm text-slate-700">${chuvaInterpret}</p>` : ''}
+                            ${chuvaInterpret ? `<p class="text-sm text-slate-700 mt-1">${chuvaInterpret}</p>` : ''}
                             <p class="text-sm text-slate-700 mt-1">${volatInfo}</p>
                         </div>
 
-                        <div class="bg-primary-container/10 p-3 rounded-lg border border-red-100">
-                            <p class="font-bold text-primary text-base mb-1">Passo 4: O que você deve fazer?</p>
-                            <p>${recomendacao}</p>
+                        ${inflacaoBlock}
+
+                        <div class="bg-primary/5 p-4 rounded-xl border border-primary/20">
+                            <p class="font-bold text-primary flex items-center gap-2 mb-2"><span class="material-symbols-outlined text-sm">recommend</span> Recomendação Final</p>
+                            <p class="text-sm text-slate-700">${recomendacao}</p>
+                            <p class="text-xs text-slate-400 mt-2">Use o calendário acima para identificar o melhor dia da semana para levar o produto. A CEAGESP recebe às segundas, quartas e sextas.</p>
                         </div>
                     </div>
                 `;
+
+                botEl.innerHTML = botContent;
+                // Anima os blocos com entrada suave
+                setTimeout(() => {
+                    const inner = document.getElementById('bot-content-inner');
+                    if (inner) {
+                        inner.querySelectorAll('.bg-blue-50, .bg-amber-50, .bg-slate-50, .bg-primary\\/5, .bg-emerald-50, [class*="bg-indigo"]').forEach((el, i) => {
+                            el.style.opacity = '0';
+                            el.style.transform = 'translateY(10px)';
+                            el.style.transition = `opacity 0.4s ease ${i * 0.12}s, transform 0.4s ease ${i * 0.12}s`;
+                            requestAnimationFrame(() => {
+                                requestAnimationFrame(() => {
+                                    el.style.opacity = '1';
+                                    el.style.transform = 'translateY(0)';
+                                });
+                            });
+                        });
+                    }
+                }, 50);
             } else {
                 botEl.innerHTML = '<p class="text-lg">Não há dados climáticos suficientes para esta análise no período selecionado. Tente um produto ou período com mais registros.</p>';
             }
